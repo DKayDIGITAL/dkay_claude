@@ -409,9 +409,9 @@ td.neg { color: var(--bad); }
 <div class="app">
   <header class="top">
     <div>
-      <p class="eyebrow">Business case · US LLC · Etsy first, own store later · Indian folk art on demand</p>
+      <p class="eyebrow">Business case · run from India · Etsy first, own store later · Indian folk art on demand for US buyers</p>
       <h1>Folk-Art Print-on-Demand P&amp;L Simulator</h1>
-      <p class="lede">Set every assumption quarter by quarter and the earnings, spending, break-even point, cash reserve and ROI recalculate instantly. Defaults follow the Etsy-first plan, with an own Shopify store from year 2.</p>
+      <p class="lede">Set every assumption quarter by quarter and the earnings, spending, break-even point, cash reserve and ROI recalculate instantly. Defaults follow the Etsy-first plan, with an own Shopify store from year 2. All amounts in rupees; buyers pay in US dollars.</p>
     </div>
     <div class="toolbar">
       <div class="seg-row"><span class="lbl">Scenario</span><div class="seg" role="group" aria-label="Scenario presets" id="presets"></div></div>
@@ -515,7 +515,7 @@ td.neg { color: var(--bad); }
         <div class="scroll" id="table"></div>
       </details>
 
-      <p class="foot">Model: every assumption except the setup cost is set per quarter (3 months); months after quarter 20 reuse quarter 20. Each month, new buyers = organic buyers + paid buyers, where paid buyers = marketing budget ÷ cost per paid order. Every buyer joins a past-buyer pool that shrinks by the monthly drop-off rate; repeat orders = past buyers × monthly repeat-order rate. Earning = (new buyers + repeat orders) × average order value. Expenditure = fixed cost + art commissions + marketing budget + production and shipping per order + platform and payment fees, refunds and artist royalty as shares of earning. US sales tax and EU/UK VAT are collected by Etsy on top of the price and are not modelled; seasonality (the Q4 gift peak) is not modelled. Income tax is not modelled. All figures are planning assumptions, not measured data.</p>
+      <p class="foot">Model: every assumption except the setup cost is set per quarter (3 months); months after quarter 20 reuse quarter 20. All amounts are in rupees. Each month, new buyers = organic buyers + paid buyers, where paid buyers = marketing budget ÷ cost per paid order. Every buyer joins a past-buyer pool that shrinks by 4% a month; repeat orders spread each buyer’s lifetime repeat orders over that pool. Buyers pay in US dollars, so the order value and the Printify/Printful cost (both entered in rupees at ₹95.7 per US$) move with the ₹/US$ rate input. Earning = orders × order value. Expenditure = fixed cost + art commissions + marketing budget + production and shipping per order + platform, payment, currency and GST-on-fee charges, refunds and artist royalty as shares of earning. Sales to buyers abroad of goods printed and shipped abroad are outside Indian GST (Schedule III); US sales tax and EU/UK VAT are collected by Etsy on top of the price. Income tax and seasonality (the Q4 gift peak) are not modelled. All figures are planning assumptions, not measured data.</p>
     </main>
   </div>
 </div>
@@ -524,20 +524,24 @@ td.neg { color: var(--bad); }
 (function () {
   const HORIZONS = [12, 24, 36, 60];
   const NQ = 20; // quarters editable (5 years); later months reuse the last quarter
-  const STORE = 'folkart-pod-sim-v1';
+  const STORE = 'folkart-pod-india-inr-v1';
+  // Reference rate: ₹95.74 per US$ on 24 Sep 2026 (R23). Order value and POD cost are entered in rupees at this rate
+  // and rescaled by each quarter's ₹/US$ input, because buyers and Printify/Printful are paid in dollars.
+  const FX_REF = 95.7;
+  const DROP = 4; // % of past buyers lost to reach each month [assumption]: about 25 months on average
   const VARS = [
     { k: 'organic', g: 'Growth', label: 'Organic new buyers', unit: '/ month', kind: 'count', min: 0, max: 3000, step: 1, hint: 'First-time buyers from Etsy search, Pinterest and word of mouth, with no paid ads. [assumption] A new shop starts near zero; no sourced benchmark for a single shop' },
-    { k: 'mkt', g: 'Growth', label: 'Marketing budget', unit: '$ / month', kind: 'usd', min: 0, max: 20000, step: 10, hint: 'Lump-sum ad spend each month: Etsy Ads in year 1 (R13), Meta and Pinterest ads for the own store from year 2 (R14). [assumption] budget' },
-    { k: 'cac', g: 'Growth', label: 'Cost per paid order', unit: '$ / new buyer', kind: 'usd', min: 1, max: 150, step: 1, hint: 'Paid new buyers each month = marketing budget ÷ this cost. Etsy Ads about $6–15 a sale (R13); Meta about $38–46 a purchase (R14). [assumption] blend' },
-    { k: 'rep', g: 'Repeat buyers', label: 'Monthly repeat-order rate', unit: '% of past buyers', kind: 'pct', min: 0, max: 20, step: 0.1, hint: 'Share of past buyers who order again in a month; 1% is about 12% a year. [assumption] no sourced benchmark' },
-    { k: 'attr', g: 'Repeat buyers', label: 'Past-buyer drop-off', unit: '% / month', kind: 'pct', min: 1, max: 50, step: 0.5, hint: 'Past buyers lost to reach each month. 4% means about 25 months on average. [assumption]' },
-    { k: 'aov', g: 'Price & cost per order', label: 'Average order value', unit: '$ / order', kind: 'usd', min: 5, max: 200, step: 1, hint: 'Item price + shipping charged, before sales tax or VAT (Etsy adds those, R16–R17). Blend of scarves, bandanas, cushion covers, table runners, yoga mats and shower curtains. [assumption] vs R19 prices' },
-    { k: 'pod', g: 'Price & cost per order', label: 'Production + shipping', unit: '$ / order', kind: 'usd', min: 0, max: 150, step: 0.5, hint: 'Printify or Printful base cost + shipping per order (R9–R10), lower from Q3 with Printify Premium (R11). [assumption] blended mix' },
-    { k: 'fee', g: 'Price & cost per order', label: 'Platform & payment fees', unit: '% of earning', kind: 'pct', min: 0, max: 30, step: 0.5, hint: 'Etsy 6.5% + 3% + $0.25 + $0.20 renewal (R5) + Offsite Ads 12–15% on attributed orders (R6); Shopify 2.9% + $0.30 (R15). Falls as the own-store share grows. [assumption] mix' },
+    { k: 'mkt', g: 'Growth', label: 'Marketing budget', unit: '₹ / month', kind: 'inr', min: 0, max: 2000000, step: 1000, hint: 'Lump-sum ad spend each month incl. 18% GST: Etsy Ads in year 1 (R13), Meta and Pinterest ads for the own store from year 2 (R14). [assumption] budget' },
+    { k: 'cac', g: 'Growth', label: 'Cost per paid order', unit: '₹ / new buyer', kind: 'inr', min: 50, max: 15000, step: 50, hint: 'Paid new buyers each month = marketing budget ÷ this cost. Etsy Ads about ₹574–1,436 a sale (R13); Meta about ₹3,637–4,402 a purchase (R14); both + 18% GST. [assumption] blend' },
+    { k: 'rep', g: 'Repeat buyers', label: 'Repeat orders per buyer', unit: 'orders, lifetime', kind: 'count', min: 0, max: 3, step: 0.05, hint: 'Extra orders an average buyer places after the first, spread over about 2 years (4% of past buyers drop off each month). [assumption] no sourced benchmark' },
+    { k: 'aov', g: 'Price & cost per order', label: 'Average order value', unit: '₹ / order at ₹95.7/US$', kind: 'inr', min: 500, max: 20000, step: 50, hint: 'Buyers pay in US$: item price + shipping, before sales tax or VAT (Etsy adds those, R16–R17). Entered at ₹95.7 per US$ (R23) and rescaled by the ₹/US$ input. Blend of scarves, bandanas, cushion covers, runners, yoga mats, shower curtains. [assumption] vs R19' },
+    { k: 'pod', g: 'Price & cost per order', label: 'Production + shipping', unit: '₹ / order at ₹95.7/US$', kind: 'inr', min: 0, max: 15000, step: 50, hint: 'Printify or Printful base cost + US shipping, billed in US$ to an Indian card, + about 4% card forex markup and GST (R9–R10, R26); lower from Q3 with Printify Premium (R11). Rescaled by the ₹/US$ input. [assumption] blended mix' },
+    { k: 'fx', g: 'Price & cost per order', label: 'Rupee per US dollar', unit: '₹ / US$', kind: 'inr', min: 60, max: 130, step: 0.1, hint: 'Converts dollar sales and dollar POD costs into rupees. ₹95.74 on 24 Sep 2026, ₹88.70 a year earlier (R23). Flat by default. [assumption] no forecast' },
+    { k: 'fee', g: 'Price & cost per order', label: 'Platform, payment & FX fees', unit: '% of earning', kind: 'pct', min: 0, max: 40, step: 0.5, hint: 'Etsy for India-based shops: 6.5% + 5% + ₹25 processing + ₹19 renewal (R5) + Offsite Ads 12–15% on attributed orders (R6), all + 18% GST under reverse charge (R25), + about 2% Payoneer conversion (R7). Own store: Razorpay/Cashfree 3% + Shopify 2% + GST (R15). [assumption] mix' },
     { k: 'ref', g: 'Price & cost per order', label: 'Refunds & non-covered reprints', unit: '% of earning', kind: 'pct', min: 0, max: 20, step: 0.5, hint: 'Buyer remorse, lost parcels, Etsy cases. POD partners only cover their own misprints (R12). [assumption]' },
-    { k: 'roy', g: 'Price & cost per order', label: 'Artist royalty', unit: '% of earning', kind: 'pct', min: 0, max: 30, step: 0.5, hint: 'Share of each sale paid to the traditional artist whose work is printed. [assumption] 5% is a policy choice, not a market rate' },
-    { k: 'art', g: 'Fixed costs', label: 'New art commissions', unit: '$ / month', kind: 'usd', min: 0, max: 10000, step: 10, hint: 'New original artworks commissioned and digitised each month, e.g. 5 × $60. Freelance commissions about $15–45; originals $30–300 (R20). [assumption]' },
-    { k: 'fixed', g: 'Fixed costs', label: 'Fixed cost', unit: '$ / month', kind: 'usd', min: 0, max: 50000, step: 10, hint: 'Tools (Printify Premium R11, Shopify from year 2 R15), listing renewals, samples, bookkeeping, LLC annual fees. Founder time unpaid. [assumption]' }
+    { k: 'roy', g: 'Price & cost per order', label: 'Artist royalty', unit: '% of earning', kind: 'pct', min: 0, max: 30, step: 0.5, hint: 'Share of each sale paid in rupees to the Indian artist whose work is printed. [assumption] 5% is a policy choice, not a market rate' },
+    { k: 'art', g: 'Fixed costs', label: 'New art commissions', unit: '₹ / month', kind: 'inr', min: 0, max: 500000, step: 500, hint: 'Original works commissioned in rupees from Indian artists and digitised, e.g. 6 × ₹4,000. Freelance Madhubani commissions about ₹1,300–3,900 (R20). [assumption] incl. scanning' },
+    { k: 'fixed', g: 'Fixed costs', label: 'Fixed cost', unit: '₹ / month', kind: 'inr', min: 0, max: 2000000, step: 500, hint: 'CA for monthly GST returns ₹1,500–5,000 (R27), tools, Printify Premium from Q3 (R11), Shopify from year 2 (R15), samples, bank charges; GST included. Founder time unpaid. [assumption]' }
   ];
   const VBY = {}; VARS.forEach(v => VBY[v.k] = v);
   const flat = v => Array(NQ).fill(v);
@@ -545,28 +549,28 @@ td.neg { color: var(--bad); }
   function baseSeries() {
     return {
       organic: ramp([3, 10, 20, 35, 45, 55, 65, 80, 90, 100, 110, 125, 130, 135, 140, 150], 150),
-      mkt: ramp([90, 90, 120, 150, 250, 300, 350, 400], 500),
-      cac: ramp([14, 14, 14, 14, 20, 20, 20, 20], 24),
-      rep: flat(1), attr: flat(4), aov: flat(42),
-      pod: ramp([22, 22], 19.5),
-      fee: ramp([12, 12, 12, 12, 11, 11, 11, 11], 10),
+      mkt: ramp([10000, 10000, 13000, 17000, 28000, 34000, 40000, 45000], 56000),
+      cac: ramp([1600, 1600, 1600, 1600, 2250, 2250, 2250, 2250], 2700),
+      rep: flat(0.25), aov: flat(4000),
+      pod: ramp([2200, 2200], 1950), fx: flat(FX_REF),
+      fee: ramp([18.5, 18.5, 18.5, 18.5, 16, 16, 16, 16], 14),
       ref: flat(3), roy: flat(5),
-      art: ramp([300, 300, 300, 300, 200, 200, 200, 200], 150),
-      fixed: ramp([120, 120, 150, 150, 300, 300, 300, 300], 320)
+      art: ramp([24000, 24000, 24000, 24000, 16000, 16000, 16000, 16000], 12000),
+      fixed: ramp([6000, 6000, 9000, 9000, 14000, 14000, 14000, 14000], 15000)
     };
   }
   const PRESETS = [
     { id: 'plan', label: 'Etsy-first plan', make: () => baseSeries() },
     { id: 'up', label: 'Upside: hit designs', make: () => Object.assign(baseSeries(), {
-      organic: ramp([5, 15, 30, 55, 70, 85, 100, 120, 135, 150, 165, 185, 195, 205, 215, 225], 225), rep: flat(1.5), aov: flat(45) }) },
+      organic: ramp([5, 15, 30, 55, 70, 85, 100, 120, 135, 150, 165, 185, 195, 205, 215, 225], 225), rep: flat(0.4), aov: flat(4300) }) },
     { id: 'paid', label: 'Paid-ads growth', make: () => Object.assign(baseSeries(), {
       organic: ramp([2, 6, 12, 20, 25, 30, 35, 40, 45, 50, 55, 60], 60),
-      mkt: ramp([300, 500, 700, 900, 1200, 1500, 1800, 2000], 2500),
-      cac: ramp([15, 15, 16, 16, 24, 26, 28, 30], 32) }) },
+      mkt: ramp([34000, 56000, 79000, 102000, 136000, 169000, 203000, 226000], 282000),
+      cac: ramp([1700, 1700, 1800, 1800, 2700, 2950, 3150, 3400], 3600) }) },
     { id: 'cons', label: 'Conservative', make: () => Object.assign(baseSeries(), {
-      organic: ramp([1, 5, 10, 18, 24, 30, 36, 44, 50, 56, 62, 70], 75), aov: flat(38), ref: flat(5), fee: ramp([13, 13, 13, 13, 12, 12, 12, 12], 11) }) }
+      organic: ramp([1, 5, 10, 18, 24, 30, 36, 44, 50, 56, 62, 70], 75), aov: flat(3650), ref: flat(5), fee: ramp([19.5, 19.5, 19.5, 19.5, 17, 17, 17, 17], 15) }) }
   ];
-  const DEF = { setup: 2500, cover: 3 };
+  const DEF = { setup: 135000, cover: 3 };
 
   let state = { setup: DEF.setup, cover: DEF.cover, measured: false, s: baseSeries() };
   let horizon = 12, sel = 'organic', selQ = 0;
@@ -585,22 +589,23 @@ td.neg { color: var(--bad); }
 
   /* ---------- formatting ---------- */
   const MINUS = '−';
-  function usd(n) { const s = Math.round(Math.abs(n)).toLocaleString('en-US'); return (n < -0.5 ? MINUS : '') + '$' + s; }
-  function usdc(n) { const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (n < -0.005 ? MINUS : '') + '$' + s; }
+  function inr(n) { const s = Math.round(Math.abs(n)).toLocaleString('en-IN'); return (n < -0.5 ? MINUS : '') + '₹' + s; }
+  const inrc = inr; // rupee amounts are shown to the rupee; no paise
   function short(n) {
     const a = Math.abs(n), sign = n < -0.5 ? MINUS : '';
-    if (a >= 1e6) return sign + '$' + trim(a / 1e6, 2) + 'M';
-    if (a >= 1e3) return sign + '$' + trim(a / 1e3, 1) + 'K';
-    return sign + '$' + Math.round(a);
+    if (a >= 1e7) return sign + '₹' + trim(a / 1e7, 2) + ' Cr';
+    if (a >= 1e5) return sign + '₹' + trim(a / 1e5, 1) + ' L';
+    if (a >= 1e3) return sign + '₹' + trim(a / 1e3, 1) + 'K';
+    return sign + '₹' + Math.round(a);
   }
   function trim(v, d) { return (+v.toFixed(d)).toString(); }
   function pct(v) { return (v > 0 ? '+' : v < 0 ? MINUS : '') + Math.abs(v).toFixed(0) + '%'; }
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function fmtV(def, v) {
-    if (def.kind === 'usd') return v >= 1e5 ? short(v) : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
+    if (def.kind === 'inr') return v >= 1e5 ? short(v) : '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
     if (def.kind === 'pct') return trim(v, 1) + '%';
     if (def.kind === 'months') return v + ' mo';
-    return Number(v).toLocaleString('en-US');
+    return Number(v).toLocaleString('en-IN');
   }
   const qOf = m => Math.min(NQ - 1, Math.floor((m - 1) / 3));
 
@@ -613,16 +618,17 @@ td.neg { color: var(--bad); }
       const organic = S.organic[q], budget = S.mkt[q], cac = S.cac[q];
       const inorg = cac > 0 ? budget / cac : 0, nl = organic + inorg;
       // repeat orders come from earlier buyers; nl = first orders this month
-      const repeat = pool * S.rep[q] / 100, paying = nl + repeat;
-      const aov = S.aov[q];
+      const repeat = pool * S.rep[q] * DROP / 100, paying = nl + repeat;
+      // dollar-priced items: rupee value moves with the quarter's ₹/US$ rate against the reference rate
+      const fxk = S.fx[q] / FX_REF, aov = S.aov[q] * fxk;
       const newRev = nl * aov, repRev = repeat * aov, revenue = newRev + repRev;
-      const pod = paying * S.pod[q], gwc = revenue * S.fee[q] / 100, refc = revenue * S.ref[q] / 100, royc = revenue * S.roy[q] / 100;
+      const pod = paying * S.pod[q] * fxk, gwc = revenue * S.fee[q] / 100, refc = revenue * S.ref[q] / 100, royc = revenue * S.roy[q] / 100;
       const mkt = budget, art = S.art[q], fixed = S.fixed[q];
       const spend = pod + gwc + refc + royc + mkt + art + fixed, net = revenue - spend;
       const gross = revenue - pod - gwc - refc - royc;
       cum += net; cumRev += revenue; cumSpend += spend; cumGross += gross;
       rows.push({ m, q, organic, inorg, nl, repeat, pool, paying, aov, newRev, repRev, revenue, pod, gwc, refc, royc, mkt, art, fixed, spend, net, cum, cumRev, cumSpend, gross, cumGross });
-      pool = pool * (1 - S.attr[q] / 100) + nl;
+      pool = pool * (1 - DROP / 100) + nl;
     }
     return rows;
   }
@@ -642,13 +648,14 @@ td.neg { color: var(--bad); }
     const roi = reserve > 0 ? (end.cum / reserve) * 100 : null;
     // unit economics at the last quarter in view
     const qRef = Math.min(NQ - 1, Math.ceil(H / 3) - 1), S = st.s;
-    const rep = S.rep[qRef] / 100, attr = S.attr[qRef] / 100, gw = S.fee[qRef] / 100;
-    const ordersPer = 1 + (attr > 0 ? rep / attr : 0);
+    const gw = S.fee[qRef] / 100, fxk = S.fx[qRef] / FX_REF;
+    const ordersPer = 1 + S.rep[qRef];
     const keep = 1 - (S.fee[qRef] + S.ref[qRef] + S.roy[qRef]) / 100;
-    const marginOrder = S.aov[qRef] * keep - S.pod[qRef];
+    const aovRef = S.aov[qRef] * fxk, podRef = S.pod[qRef] * fxk;
+    const marginOrder = aovRef * keep - podRef;
     const inorgRef = S.cac[qRef] > 0 ? S.mkt[qRef] / S.cac[qRef] : 0, nlRef = S.organic[qRef] + inorgRef;
     const blendedCac = nlRef > 0 ? S.mkt[qRef] / nlRef : 0;
-    const ltv = ordersPer * S.aov[qRef] * (1 - gw);
+    const ltv = ordersPer * aovRef * (1 - gw);
     const acqPaying = blendedCac;
     const contribNew = ordersPer * marginOrder;
     const needN = contribNew > 0 ? (S.fixed[qRef] + S.mkt[qRef] + S.art[qRef]) / contribNew : Infinity;
@@ -664,7 +671,7 @@ td.neg { color: var(--bad); }
     }
     let peak = plan[0];
     plan.forEach(q => { if (q.need > peak.need) peak = q; });
-    return { long, rows, crossRow, payRow, minCum, minM, reserve, y1op, y1net, end, roi, qRef, ltv, acqPaying, blendedCac, contribNew, needN, nlRef, plan, peak, ordersPer, marginOrder };
+    return { long, rows, crossRow, payRow, minCum, minM, reserve, y1op, y1net, end, roi, qRef, ltv, acqPaying, blendedCac, contribNew, needN, nlRef, plan, peak, ordersPer, marginOrder, aovRef, podRef };
   }
 
   /* ---------- one-time fields (setup, reserve cover) ---------- */
@@ -682,7 +689,7 @@ td.neg { color: var(--bad); }
     n.addEventListener('change', () => { let v = parseFloat(n.value); if (!isFinite(v)) v = get(); setv(Math.min(max, Math.max(min, v))); schedule(); });
     return () => { r.value = get(); if (document.activeElement !== n) n.value = get(); };
   }
-  const syncSetup = makeField(document.getElementById('oneTime'), 'setup', 'Setup investment (one-time)', 0, 30000, 100, '$', 'Default $2,500 · LLC filing and registered agent, Etsy setup fee (R7), 25 commissioned designs (R20), product samples, branding [assumption]', () => state.setup, v => { state.setup = v; });
+  const syncSetup = makeField(document.getElementById('oneTime'), 'setup', 'Setup investment (one-time)', 0, 2000000, 5000, '₹', 'Default ₹1,35,000 · proprietorship, GST registration and Udyam (about ₹0–2,000, R27), CA onboarding, Etsy setup fee (R7), 25 designs from Indian artists at about ₹4,000 (R20), samples shipped to India, branding [assumption]', () => state.setup, v => { state.setup = v; });
   const syncCoverField = makeField(document.getElementById('planning'), 'cover', 'Months of expenses to hold in reserve', 1, 12, 1, 'months', 'Reserve = next months’ expenditure with zero revenue − profit so far', () => state.cover, v => { state.cover = v; });
   const measBox = document.createElement('label'); measBox.className = 'meas';
   measBox.innerHTML = '<input type="checkbox" id="measured"><span><b>Inputs measured in a pilot</b><br>Tick only when these numbers come from real pilot results. The Six Hats verdict can reach GO only with measured inputs.</span>';
@@ -860,7 +867,7 @@ td.neg { color: var(--bad); }
     if (A.crossRow && A.crossRow.m <= horizon) {
       cls = 'good'; icon = '▲'; label = 'Profitable within view';
       text = 'Monthly earning overtakes expenditure in <strong>month ' + A.crossRow.m + '</strong>. ' +
-        (A.payRow ? 'The full investment, setup included, is recovered in <strong>month ' + A.payRow.m + '</strong>.' : 'Cumulative cash is still below $0 after 10 years.');
+        (A.payRow ? 'The full investment, setup included, is recovered in <strong>month ' + A.payRow.m + '</strong>.' : 'Cumulative cash is still below ₹0 after 10 years.');
     } else if (A.crossRow) {
       cls = 'warn'; icon = '◆'; label = 'Break-even beyond this view';
       text = 'No monthly profit inside the ' + horizonLabel() + ' view. At these assumptions earning first overtakes expenditure in <strong>month ' + A.crossRow.m + '</strong>' +
@@ -868,8 +875,8 @@ td.neg { color: var(--bad); }
     } else {
       cls = 'bad'; icon = '▼'; label = 'No break-even';
       const qn = 'Q' + (A.qRef + 1);
-      if (A.contribNew <= 0) text = 'At ' + qn + ' prices and costs, every new buyer loses money over their orders (' + usdc(A.contribNew) + ' each), so growth only deepens the loss. Raise the order value, cut production and shipping or lower fees.';
-      else text = 'At ' + qn + ' cost levels, break-even needs about <strong>' + Math.ceil(A.needN).toLocaleString('en-US') + ' new buyers a month</strong>; the plan has ' + Math.round(A.nlRef).toLocaleString('en-US') + '. Grow organic buyers, lower the cost per paid order or trim fixed and art costs.';
+      if (A.contribNew <= 0) text = 'At ' + qn + ' prices and costs, every new buyer loses money over their orders (' + inrc(A.contribNew) + ' each), so growth only deepens the loss. Raise the order value, cut production and shipping or lower fees.';
+      else text = 'At ' + qn + ' cost levels, break-even needs about <strong>' + Math.ceil(A.needN).toLocaleString('en-IN') + ' new buyers a month</strong>; the plan has ' + Math.round(A.nlRef).toLocaleString('en-IN') + '. Grow organic buyers, lower the cost per paid order or trim fixed and art costs.';
     }
     el.innerHTML = '<span class="pill ' + cls + '"><span aria-hidden="true">' + icon + '</span>' + label + '</span><p>' + text + '</p>';
   }
@@ -896,12 +903,12 @@ td.neg { color: var(--bad); }
 
   function renderUnit(A) {
     const el = document.getElementById('unit'), S = state.s, q = A.qRef, qn = 'Q' + (q + 1);
-    const needTxt = isFinite(A.needN) ? Math.ceil(A.needN).toLocaleString('en-US') + ' / month' : 'Never';
-    const needSub = isFinite(A.needN) ? 'At ' + qn + ' costs · plan has ' + Math.round(A.nlRef).toLocaleString('en-US') + ' / month' : 'Each buyer loses money';
+    const needTxt = isFinite(A.needN) ? Math.ceil(A.needN).toLocaleString('en-IN') + ' / month' : 'Never';
+    const needSub = isFinite(A.needN) ? 'At ' + qn + ' costs · plan has ' + Math.round(A.nlRef).toLocaleString('en-IN') + ' / month' : 'Each buyer loses money';
     el.innerHTML = [
-      u('Lifetime revenue per buyer', usdc(A.ltv), A.ordersPer.toFixed(2) + ' orders × ' + usdc(S.aov[q]) + ', after platform fees, ' + qn),
-      u('Acquisition cost per buyer', isFinite(A.acqPaying) ? usdc(A.acqPaying) : '—', 'Marketing ÷ all new buyers (paid at ' + usd(S.cac[q]) + ' each), ' + qn),
-      u('Margin per new buyer', usdc(A.contribNew), usdc(A.marginOrder) + ' per order × ' + A.ordersPer.toFixed(2) + ' orders; before fixed, art and marketing, ' + qn),
+      u('Lifetime revenue per buyer', inrc(A.ltv), A.ordersPer.toFixed(2) + ' orders × ' + inrc(A.aovRef) + ' at ₹' + S.fx[q] + ' per US$, after fees, ' + qn),
+      u('Acquisition cost per buyer', isFinite(A.acqPaying) ? inrc(A.acqPaying) : '—', 'Marketing ÷ all new buyers (paid at ' + inr(S.cac[q]) + ' each), ' + qn),
+      u('Margin per new buyer', inrc(A.contribNew), inrc(A.marginOrder) + ' per order × ' + A.ordersPer.toFixed(2) + ' orders; before fixed, art and marketing, ' + qn),
       u('Break-even new buyers', needTxt, needSub)
     ].join('');
   }
@@ -912,11 +919,11 @@ td.neg { color: var(--bad); }
     let h = '<table><thead><tr>' + head.map(x => '<th scope="col">' + x + '</th>').join('') + '</tr></thead><tbody>';
     const p0 = A.plan[0];
     const sc = v => (v >= 0 ? 'pos' : 'neg');
-    h += '<tr><td>0 (setup)</td>' + '<td>—</td>'.repeat(16) + '<td>' + usd(state.setup) + '</td><td>—</td><td class="neg">' + usd(-state.setup) + '</td><td>$0</td><td>' + usd(p0.cumSpend) + '</td><td>$0</td><td class="neg">' + usd(p0.profit) + '</td><td>' + usd(p0.need) + '</td></tr>';
+    h += '<tr><td>0 (setup)</td>' + '<td>—</td>'.repeat(16) + '<td>' + inr(state.setup) + '</td><td>—</td><td class="neg">' + inr(-state.setup) + '</td><td>₹0</td><td>' + inr(p0.cumSpend) + '</td><td>₹0</td><td class="neg">' + inr(p0.profit) + '</td><td>' + inr(p0.need) + '</td></tr>';
     A.rows.forEach(r => {
       const q = A.plan[r.m];
-      h += '<tr><td>' + r.m + '</td><td>Q' + (r.q + 1) + '</td><td>' + Math.round(r.organic) + '</td><td>' + Math.round(r.inorg) + '</td><td>' + Math.round(r.nl) + '</td><td>' + Math.round(r.repeat) + '</td><td>' + Math.round(r.paying) + '</td><td>' + usd(r.newRev) + '</td><td>' + usd(r.repRev) + '</td><td>' + usd(r.revenue) + '</td><td>' + usd(r.pod) + '</td><td>' + usd(r.mkt) + '</td><td>' + usd(r.art) + '</td><td>' + usd(r.fixed) + '</td><td>' + usd(r.gwc) + '</td><td>' + usd(r.refc) + '</td><td>' + usd(r.royc) + '</td><td>' + usd(r.spend) +
-        '</td><td class="' + sc(r.gross) + '">' + usd(r.gross) + '</td><td class="' + sc(r.net) + '">' + usd(r.net) + '</td><td>' + usd(r.cumRev) + '</td><td>' + usd(r.cumSpend) + '</td><td class="' + sc(r.cumGross) + '">' + usd(r.cumGross) + '</td><td class="' + sc(r.cum) + '">' + usd(r.cum) + '</td><td>' + usd(q.need) + '</td></tr>';
+      h += '<tr><td>' + r.m + '</td><td>Q' + (r.q + 1) + '</td><td>' + Math.round(r.organic) + '</td><td>' + Math.round(r.inorg) + '</td><td>' + Math.round(r.nl) + '</td><td>' + Math.round(r.repeat) + '</td><td>' + Math.round(r.paying) + '</td><td>' + inr(r.newRev) + '</td><td>' + inr(r.repRev) + '</td><td>' + inr(r.revenue) + '</td><td>' + inr(r.pod) + '</td><td>' + inr(r.mkt) + '</td><td>' + inr(r.art) + '</td><td>' + inr(r.fixed) + '</td><td>' + inr(r.gwc) + '</td><td>' + inr(r.refc) + '</td><td>' + inr(r.royc) + '</td><td>' + inr(r.spend) +
+        '</td><td class="' + sc(r.gross) + '">' + inr(r.gross) + '</td><td class="' + sc(r.net) + '">' + inr(r.net) + '</td><td>' + inr(r.cumRev) + '</td><td>' + inr(r.cumSpend) + '</td><td class="' + sc(r.cumGross) + '">' + inr(r.cumGross) + '</td><td class="' + sc(r.cum) + '">' + inr(r.cum) + '</td><td>' + inr(q.need) + '</td></tr>';
     });
     h += '</tbody></table>';
     document.getElementById('table').innerHTML = h;
@@ -997,7 +1004,7 @@ td.neg { color: var(--bad); }
     }
     // setup bar
     const bw = Math.max(6, Math.min(30, step * 0.6));
-    s += '<rect class="bar-invest" x="' + (x(0) - bw / 2) + '" y="' + y(p.setup) + '" width="' + bw + '" height="' + Math.max(0, y(0) - y(p.setup)) + '" rx="3"><title>Setup investment: ' + usd(p.setup) + '</title></rect>';
+    s += '<rect class="bar-invest" x="' + (x(0) - bw / 2) + '" y="' + y(p.setup) + '" width="' + bw + '" height="' + Math.max(0, y(0) - y(p.setup)) + '" rx="3"><title>Setup investment: ' + inr(p.setup) + '</title></rect>';
     if (p.setup > 0) s += '<text class="lbl-strong t-num" x="' + (x(0) - bw / 2) + '" y="' + (y(p.setup) - 6) + '">Setup ' + short(p.setup) + '</text>';
 
     const path = key => rows.map((r, i) => (i ? 'L' : 'M') + x(r.m).toFixed(1) + ' ' + y(r[key]).toFixed(1)).join(' ');
@@ -1037,15 +1044,15 @@ td.neg { color: var(--bad); }
     const svg = el.querySelector('svg');
     attachHover(el, svg, d, x, 0, n, m => {
       svg.querySelectorAll('.hov').forEach(nd => nd.remove());
-      if (m === 0) return tipHTML('Month 0 · setup', [['Setup investment', usd(p.setup)]]);
+      if (m === 0) return tipHTML('Month 0 · setup', [['Setup investment', inr(p.setup)]]);
       const r = rows[m - 1];
       svg.insertAdjacentHTML('beforeend', dot(x(m), y(r.revenue), 'var(--earn)') + dot(x(m), y(r.spend), 'var(--spend)'));
-      const earnRows = [['New buyers', Math.round(r.organic) + ' organic + ' + Math.round(r.inorg) + ' paid'], '-', ['Earning', usd(r.revenue)],
-        ['First orders: ' + Math.round(r.nl).toLocaleString('en-US') + ' × ' + usdc(r.aov), usd(r.newRev), 1]];
-      if (r.repeat >= 0.5) earnRows.push(['Repeat orders: ' + Math.round(r.repeat) + ' × ' + usdc(r.aov), usd(r.repRev), 1]);
+      const earnRows = [['New buyers', Math.round(r.organic) + ' organic + ' + Math.round(r.inorg) + ' paid'], '-', ['Earning', inr(r.revenue)],
+        ['First orders: ' + Math.round(r.nl).toLocaleString('en-IN') + ' × ' + inrc(r.aov), inr(r.newRev), 1]];
+      if (r.repeat >= 0.5) earnRows.push(['Repeat orders: ' + Math.round(r.repeat) + ' × ' + inrc(r.aov), inr(r.repRev), 1]);
       return tipHTML('Month ' + m + ' · Q' + (r.q + 1), earnRows.concat(['-',
-        ['Expenditure', usd(r.spend)], ['Fixed', usd(r.fixed), 1], ['Art commissions', usd(r.art), 1], ['Production + shipping', usd(r.pod), 1], ['Marketing budget', usd(r.mkt), 1], ['Platform fees', usd(r.gwc), 1], ['Refunds + royalty', usd(r.refc + r.royc), 1], '-',
-        [r.net >= 0 ? 'Profit ▲' : 'Loss ▼', usd(r.net)]
+        ['Expenditure', inr(r.spend)], ['Fixed', inr(r.fixed), 1], ['Art commissions', inr(r.art), 1], ['Production + shipping', inr(r.pod), 1], ['Marketing budget', inr(r.mkt), 1], ['Platform fees', inr(r.gwc), 1], ['Refunds + royalty', inr(r.refc + r.royc), 1], '-',
+        [r.net >= 0 ? 'Profit ▲' : 'Loss ▼', inr(r.net)]
       ]));
     });
   }
@@ -1062,7 +1069,7 @@ td.neg { color: var(--bad); }
     const ticks = niceTicks(0, hi, 5), yMax = ticks[ticks.length - 1];
     const y = v => d.mt + ih - (v / yMax) * ih;
     let s = '<svg viewBox="0 0 ' + d.W + ' ' + d.H + '" role="img" aria-label="Cumulative expenditure versus cumulative revenue, and owner cash reserve for the next ' + K + ' months, over ' + n + ' months">';
-    ticks.forEach(t => { s += '<line class="grid" x1="' + d.ml + '" x2="' + (d.W - d.mr) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text class="t-num" x="' + (d.ml - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + (t === 0 ? '$0' : short(t)) + '</text>'; });
+    ticks.forEach(t => { s += '<line class="grid" x1="' + d.ml + '" x2="' + (d.W - d.mr) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text class="t-num" x="' + (d.ml - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + (t === 0 ? '₹0' : short(t)) + '</text>'; });
     s += '<line class="axis" x1="' + d.ml + '" x2="' + (d.W - d.mr) + '" y1="' + y(0) + '" y2="' + y(0) + '"/>';
     const every = xTickEvery(n);
     for (let m = 0; m <= n; m++) if (m === 0 || m % every === 0) s += '<text class="t-num" x="' + x(m) + '" y="' + (d.H - d.mb + 18) + '" text-anchor="middle">' + m + '</text>';
@@ -1130,12 +1137,12 @@ td.neg { color: var(--bad); }
       const q = pts[m];
       svg.insertAdjacentHTML('beforeend', dot(x(m), y(q.cumSpend), 'var(--spend)') + dot(x(m), y(q.cumRev), 'var(--earn)') + dot(x(m), y(q.need), 'var(--cash)'));
       return tipHTML(m === 0 ? 'Month 0 · launch' : 'Month ' + m, [
-        ['Cumulative revenue', usd(q.cumRev)],
-        ['Cumulative expenditure', usd(q.cumSpend)], ['Setup included', usd(p.setup), 1],
-        [q.profit >= 0 ? 'Cumulative profit ▲' : 'Cumulative loss ▼', usd(q.profit)], '-',
-        ['Next ' + K + ' months’ expenditure', usd(q.fwd), 1],
-        [q.profit >= 0 ? 'minus profit so far' : 'plus losses so far', usd(Math.abs(q.profit)), 1],
-        ['Reserve needed', usd(q.need)]
+        ['Cumulative revenue', inr(q.cumRev)],
+        ['Cumulative expenditure', inr(q.cumSpend)], ['Setup included', inr(p.setup), 1],
+        [q.profit >= 0 ? 'Cumulative profit ▲' : 'Cumulative loss ▼', inr(q.profit)], '-',
+        ['Next ' + K + ' months’ expenditure', inr(q.fwd), 1],
+        [q.profit >= 0 ? 'minus profit so far' : 'plus losses so far', inr(Math.abs(q.profit)), 1],
+        ['Reserve needed', inr(q.need)]
       ]);
     });
   }
@@ -1150,7 +1157,7 @@ td.neg { color: var(--bad); }
     const cum = [{ m: 0, g: 0, v: -p.setup }].concat(A.rows.map(r => ({ m: r.m, g: r.cumGross, v: r.cum })));
     const ext = (arr) => { let lo = 0, hi = 0; arr.forEach(q => { lo = Math.min(lo, q.g, q.v); hi = Math.max(hi, q.g, q.v); }); return [lo, hi]; };
     let [mLo, mHi] = ext(mon); const [cLo, cHi] = ext(cum);
-    // right (cumulative) scale = left (monthly) scale × a round factor, so $0 and gridlines line up
+    // right (cumulative) scale = left (monthly) scale × a round factor, so ₹0 and gridlines line up
     const mSpan = (mHi - mLo) || 1, cSpan = (cHi - cLo) || 1;
     const raw = Math.max(1, cSpan / mSpan), mag = Math.pow(10, Math.floor(Math.log10(raw))), nn = raw / mag;
     const k = (nn <= 1 ? 1 : nn <= 2 ? 2 : nn <= 2.5 ? 2.5 : nn <= 5 ? 5 : 10) * mag;
@@ -1159,19 +1166,19 @@ td.neg { color: var(--bad); }
     const ticks = niceTicks(mLo, mHi, 5), yMin = ticks[0], yMax = ticks[ticks.length - 1];
     const y = v => d.mt + ih - ((v - yMin) / (yMax - yMin)) * ih;
     const yc = v => y(v / k);
-    document.getElementById('profitScale').textContent = 'Lines use the left scale (monthly). Areas use the right scale (cumulative), which is the left scale × ' + k.toLocaleString('en-US') + '.';
+    document.getElementById('profitScale').textContent = 'Lines use the left scale (monthly). Areas use the right scale (cumulative), which is the left scale × ' + k.toLocaleString('en-IN') + '.';
     let s = '<svg viewBox="0 0 ' + d.W + ' ' + d.H + '" role="img" aria-label="Monthly gross and net profit as lines, cumulative gross and net profit as shaded areas, over ' + n + ' months">';
     s += '<text class="axis-title" x="' + (d.ml - 8) + '" y="' + (d.mt - 12) + '" text-anchor="end">Monthly</text>';
     s += '<text class="axis-title" x="' + (d.W - d.mr + 8) + '" y="' + (d.mt - 12) + '">Cumulative</text>';
     ticks.forEach(t => {
       s += '<line class="grid" x1="' + d.ml + '" x2="' + (d.W - d.mr) + '" y1="' + y(t) + '" y2="' + y(t) + '"/>';
-      s += '<text class="t-num" x="' + (d.ml - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + (t === 0 ? '$0' : short(t)) + '</text>';
-      s += '<text class="t-num" x="' + (d.W - d.mr + 8) + '" y="' + (y(t) + 4) + '">' + (t === 0 ? '$0' : short(t * k)) + '</text>';
+      s += '<text class="t-num" x="' + (d.ml - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + (t === 0 ? '₹0' : short(t)) + '</text>';
+      s += '<text class="t-num" x="' + (d.W - d.mr + 8) + '" y="' + (y(t) + 4) + '">' + (t === 0 ? '₹0' : short(t * k)) + '</text>';
     });
     const every = xTickEvery(n);
     for (let m = 0; m <= n; m++) if (m === 0 || m % every === 0) s += '<text class="t-num" x="' + x(m) + '" y="' + (d.H - d.mb + 18) + '" text-anchor="middle">' + m + '</text>';
     s += '<text x="' + (d.W - d.mr) + '" y="' + (d.H - 4) + '" text-anchor="end">Month</text>';
-    // cumulative areas (to $0), drawn first
+    // cumulative areas (to ₹0), drawn first
     const area = (key, cls) => {
       const line = cum.map((q, i) => (i ? 'L' : 'M') + x(q.m).toFixed(1) + ' ' + yc(q[key]).toFixed(1)).join(' ');
       return '<path class="' + cls + '" d="' + line + ' L' + x(n).toFixed(1) + ' ' + y(0).toFixed(1) + ' L' + x(0).toFixed(1) + ' ' + y(0).toFixed(1) + ' Z"/>';
@@ -1182,7 +1189,7 @@ td.neg { color: var(--bad); }
     const path = key => mon.map((q, i) => (i ? 'L' : 'M') + x(q.m).toFixed(1) + ' ' + y(q[key]).toFixed(1)).join(' ');
     s += '<path class="l-halo" d="' + path('g') + '"/><path class="l-gross" d="' + path('g') + '"/>';
     s += '<path class="l-halo" d="' + path('v') + '"/><path class="l-net" d="' + path('v') + '"/>';
-    // markers: monthly net turns positive, cumulative net crosses $0
+    // markers: monthly net turns positive, cumulative net crosses ₹0
     const crossAt = (arr, yf) => {
       for (let i = 0; i < arr.length; i++) {
         const b = arr[i];
@@ -1212,53 +1219,71 @@ td.neg { color: var(--bad); }
       const c = cum[m];
       if (m === 0) {
         svg.insertAdjacentHTML('beforeend', dot(x(0), yc(c.v), 'var(--net)'));
-        return tipHTML('Month 0 · setup', [['Cumulative gross profit', usd(0)], ['Cumulative net profit', usd(-p.setup)], ['Setup cost', usd(p.setup), 1]]);
+        return tipHTML('Month 0 · setup', [['Cumulative gross profit', inr(0)], ['Cumulative net profit', inr(-p.setup)], ['Setup cost', inr(p.setup), 1]]);
       }
       const r = mon[m - 1].r;
       svg.insertAdjacentHTML('beforeend', dot(x(m), y(r.gross), 'var(--gross)') + dot(x(m), y(r.net), 'var(--net)'));
       return tipHTML('Month ' + m, [
-        ['Earning', usd(r.revenue)], ['− Production + shipping', usd(r.pod), 1], ['− Platform fees', usd(r.gwc), 1], ['− Refunds', usd(r.refc), 1], ['− Artist royalty', usd(r.royc), 1],
-        [r.gross >= 0 ? 'Gross profit ▲' : 'Gross loss ▼', usd(r.gross)],
-        ['− Fixed costs', usd(r.fixed), 1], ['− Art commissions', usd(r.art), 1], ['− Marketing', usd(r.mkt), 1],
-        [r.net >= 0 ? 'Net profit ▲' : 'Net loss ▼', usd(r.net)], '-',
-        ['Cumulative gross', usd(c.g)], ['Cumulative net (after setup)', usd(c.v)]
+        ['Earning', inr(r.revenue)], ['− Production + shipping', inr(r.pod), 1], ['− Platform fees', inr(r.gwc), 1], ['− Refunds', inr(r.refc), 1], ['− Artist royalty', inr(r.royc), 1],
+        [r.gross >= 0 ? 'Gross profit ▲' : 'Gross loss ▼', inr(r.gross)],
+        ['− Fixed costs', inr(r.fixed), 1], ['− Art commissions', inr(r.art), 1], ['− Marketing', inr(r.mkt), 1],
+        [r.net >= 0 ? 'Net profit ▲' : 'Net loss ▼', inr(r.net)], '-',
+        ['Cumulative gross', inr(c.g)], ['Cumulative net (after setup)', inr(c.v)]
       ]);
     });
   }
 
   /* ---------- red-team critic ---------- */
+  // USD benchmarks are shown in rupees at the reference rate (R23), with the original dollar figure in brackets
+  const sig3 = x => { if (!x) return 0; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 2); return Math.round(x / p) * p; };
+  function rs(a) {
+    a = sig3(a);
+    if (a >= 1e12) return trim(a / 1e12, 1) + ' lakh Cr';
+    if (a >= 1e7) return Math.round(a / 1e7).toLocaleString('en-IN') + ' Cr';
+    if (a >= 1e5) return trim(a / 1e5, 1) + ' L';
+    return Math.round(a).toLocaleString('en-IN');
+  }
+  const U = (lo, hi, lab) => '₹' + rs(lo * FX_REF) + (hi != null ? '–' + rs(hi * FX_REF) : '') + ' (US$' + (lab || (lo + (hi != null ? '–' + hi : ''))) + ')';
   const RESEARCH = [
-    { id: 'R1', label: 'Etsy marketplace, 2025', value: 'GMS about $10.5B (down about 5% YoY); 86.5M active buyers. Home & Living is the top category, reported at about $3.5B GMS', big: '86.5M', sam: '$3.5B', say: 'active Etsy buyers in 2025, spending about $10.5B', src: 'Etsy Q4/FY2025 results (seekingalpha.com)', url: 'https://seekingalpha.com/pr/20405358' },
+    { id: 'R1', label: 'Etsy marketplace, 2025', value: 'GMS about ' + U(10.5e9, null, '10.5B') + ', down about 5% YoY; 86.5M active buyers. Home & Living is the top category, reported at about ' + U(3.5e9, null, '3.5B') + ' GMS', big: '86.5M', sam: '₹' + rs(3.5e9 * FX_REF), say: 'active Etsy buyers in 2025, spending about ₹' + rs(10.5e9 * FX_REF), src: 'Etsy Q4/FY2025 results (seekingalpha.com)', url: 'https://seekingalpha.com/pr/20405358' },
     { id: 'R2', label: 'Etsy active sellers', value: 'about 5.6M at the end of 2025', big: '5.6M', src: 'branvas.com (Etsy filings)', url: 'https://branvas.com/blogs/news/etsy-statistics-sellers-buyers-gms-fees' },
-    { id: 'R3', label: 'US home décor market (TAM)', value: 'about $181–215B in 2025, by firm', big: '$181–215B', src: 'imarcgroup.com', url: 'https://www.imarcgroup.com/united-states-home-decor-market-statistics' },
+    { id: 'R3', label: 'US home décor market (TAM)', value: 'about ' + U(181e9, 215e9, '181–215B') + ' in 2025, by firm', big: '₹' + rs(181e9 * FX_REF).replace(' lakh Cr', '') + '–' + rs(215e9 * FX_REF), src: 'imarcgroup.com', url: 'https://www.imarcgroup.com/united-states-home-decor-market-statistics' },
     { id: 'R4', label: 'US adults who practise yoga', value: '38.4M (16% of adults) in 2022, CDC National Health Interview Survey', big: '38.4M', say: 'US adults practise yoga (CDC, 2022)', src: 'wamc.org (NPR, CDC data)', url: 'https://www.wamc.org/2024-06-12/have-we-reached-peak-yoga-in-the-u-s-the-cdc-wants-to-know' },
-    { id: 'R5', label: 'Etsy core fees (US seller)', value: '$0.20 listing (renewed on every sale), 6.5% transaction fee incl. shipping, 3% + $0.25 payment processing', src: 'checkoutpage.com', url: 'https://checkoutpage.com/blog/etsy-fees' },
-    { id: 'R6', label: 'Etsy Offsite Ads', value: '15% of attributed orders under $10K a year; 12% and mandatory for good once a shop passes $10K in 12 months; cap $100 an order; 30-day attribution', src: 'outfy.com', url: 'https://www.outfy.com/blog/etsy-offsite-ads/' },
-    { id: 'R7', label: 'Start-up and payout friction', value: 'Etsy one-time shop setup fee about $15–29; new shops can have payouts held in reserve for a period after first sales; LLC state filing fees about $35–500', src: 'litcommerce.com, simplybusiness.co.uk, upcounsel.com', url: 'https://litcommerce.com/blog/how-much-does-it-cost-to-start-an-etsy-shop/' },
+    { id: 'R5', label: 'Etsy fees for an India-based shop', value: 'listing ' + U(0.2) + ', renewed on every sale; 6.5% transaction fee incl. shipping; payment processing for India 5% + ₹25 a sale', src: 'qikink.com, alura.io (search snippets)', url: 'https://qikink.com/blog/how-to-sell-on-etsy-india/' },
+    { id: 'R6', label: 'Etsy Offsite Ads', value: '15% of attributed orders under ' + U(10000, null, '10K') + ' a year; 12% and mandatory for good once a shop passes that in 12 months; cap ' + U(100) + ' an order; 30-day attribution', src: 'outfy.com', url: 'https://www.outfy.com/blog/etsy-offsite-ads/' },
+    { id: 'R7', label: 'Etsy payouts to India', value: 'Etsy deposits India-based shops in US$ to a Payoneer account each week; Indian Etsy Payments shops cannot take domestic orders. Payoneer converts to rupees at about 2–2.75% over mid-market plus ' + U(1.5, 4) + ' a withdrawal and gives a free digital FIRA. Etsy one-time shop setup fee about ' + U(15, 29) + '; new shops can have payouts held in reserve', src: 'alura.io, skydo.com, litcommerce.com', url: 'https://www.skydo.com/compare/payoneer-pricing' },
     { id: 'R8', label: 'Etsy Creativity Standards', value: 'POD sits under “Designed by a seller”; every production partner must be disclosed; designs must be your own or commissioned, not bought ready-made', src: 'help.printify.com', url: 'https://help.printify.com/hc/en-us/articles/4578896595345' },
-    { id: 'R9', label: 'Printify base costs (catalogue “from” prices)', value: 'pillowcase from about €9.99; table runner from €17.96; shower curtain from €34.82; scarf from $13.88; US shipping from $3.99–4.75 plus per-item extras', src: 'printify.com, help.printify.com (search snippets; pages not reachable from this sandbox)', url: 'https://help.printify.com/hc/en-us/articles/4483626155409' },
-    { id: 'R10', label: 'Printful base costs', value: 'all-over-print bandana from $11.95; yoga mat about $43.18 + $13.99 US shipping', src: 'printful.com (search snippets)', url: 'https://www.printful.com/custom/sports-accessories/personalized/yoga-mat/a/podbenchmark' },
-    { id: 'R11', label: 'Printify Premium', value: '$39/month since Feb 2026 or $299/year; up to 20% off products', src: 'ecommerce-platforms.com', url: 'https://ecommerce-platforms.com/print-on-demand/printify-pricing' },
+    { id: 'R9', label: 'Printify base costs (catalogue “from” prices)', value: 'pillowcase from about €9.99; table runner from €17.96; shower curtain from €34.82 (listed in euros); scarf from ' + U(13.88) + '; US shipping from ' + U(3.99, 4.75) + ' plus per-item extras', src: 'printify.com, help.printify.com (search snippets; pages not reachable from this sandbox)', url: 'https://help.printify.com/hc/en-us/articles/4483626155409' },
+    { id: 'R10', label: 'Printful base costs', value: 'all-over-print bandana from ' + U(11.95) + '; yoga mat about ' + U(43.18) + ' + ' + U(13.99) + ' US shipping', src: 'printful.com (search snippets)', url: 'https://www.printful.com/custom/sports-accessories/personalized/yoga-mat/a/podbenchmark' },
+    { id: 'R11', label: 'Printify Premium', value: U(39) + ' a month since Feb 2026 or ' + U(299) + ' a year; up to 20% off products', src: 'ecommerce-platforms.com', url: 'https://ecommerce-platforms.com/print-on-demand/printify-pricing' },
     { id: 'R12', label: 'POD reprint and refund policy', value: 'misprints and damage reprinted free with photo proof within 30 days; buyer’s remorse not covered', src: 'help.printful.com', url: 'https://help.printful.com/hc/en-us/articles/360014006840' },
-    { id: 'R13', label: 'Etsy Ads cost', value: 'about $0.20–0.50 a click for POD; at 2% conversion about $15 a sale on a $30 order, about $6 at 5%; 3× ROAS is the floor', src: 'mydesigns.io', url: 'https://mydesigns.io/blog/etsy-ads/' },
-    { id: 'R14', label: 'Meta ads cost per purchase', value: 'about $38 e-commerce average; about $46 Home & Garden', src: 'triplewhale.com', url: 'https://triplewhale.com/blog/facebook-ads-benchmarks' },
-    { id: 'R15', label: 'Shopify (own store)', value: 'Basic $39/month ($29 billed yearly); Shopify Payments 2.9% + $0.30 online', src: 'websitebuilderexpert.com', url: 'https://www.websitebuilderexpert.com/ecommerce-website-builders/shopify-pricing/' },
-    { id: 'R16', label: 'US sales tax', value: 'Etsy is the marketplace facilitator and collects and remits sales tax in every sales-tax state; an own store must register where it crosses each state’s economic-nexus threshold', src: 'help.etsy.com', url: 'https://help.etsy.com/hc/articles/360000343968' },
+    { id: 'R13', label: 'Etsy Ads cost', value: 'about ' + U(0.2, 0.5) + ' a click for POD; at 2% conversion about ' + U(15) + ' a sale on a ' + U(30) + ' order, about ' + U(6) + ' at 5%; 3× ROAS is the floor', src: 'mydesigns.io', url: 'https://mydesigns.io/blog/etsy-ads/' },
+    { id: 'R14', label: 'Meta ads cost per purchase', value: 'about ' + U(38) + ' e-commerce average; about ' + U(46) + ' Home & Garden', src: 'triplewhale.com', url: 'https://triplewhale.com/blog/facebook-ads-benchmarks' },
+    { id: 'R15', label: 'Own store from India (Shopify)', value: 'Basic about ₹1,499 a month billed yearly in localised pricing, or about ₹2,410–3,240 at dollar pricing; Shopify Payments is not available in India, so Razorpay or Cashfree charge about 3% on international cards, plus Shopify’s 2% fee for third-party gateways on Basic', src: 'sociolabs.in, ecosire.com', url: 'https://ecosire.com/blog/shopify-payment-gateways-by-country-2026' },
+    { id: 'R16', label: 'US sales tax', value: 'Etsy is the marketplace facilitator and collects and remits sales tax in every sales-tax state; an own store must register where it crosses each state’s economic-nexus threshold, wherever the seller is based', src: 'help.etsy.com', url: 'https://help.etsy.com/hc/articles/360000343968' },
     { id: 'R17', label: 'UK/EU VAT and product safety', value: 'Etsy is the deemed supplier and collects VAT on EU orders up to €150 (IOSS) and UK orders up to £135; since 13 Dec 2024 EU GPSR needs an EU-based responsible person and safety details on listings', src: 'linkmybooks.com, craftybase.com', url: 'https://craftybase.com/blog/what-is-gpsr' },
-    { id: 'R18', label: 'Geographical Indications (India)', value: 'Madhubani GI 2007; Srikalahasti and Machilipatnam Kalamkari 2007–08; Odisha Pattachitra 2008; Warli 2014; Gond 2023', src: 'itokri.com, freepressjournal.in', url: 'https://itokri.com/blogs/craft-masala-by-itokri/gorgeous-art-forms-that-won-the-gi-tag' },
-    { id: 'R19', label: 'Competing authentic products', value: 'hand block-printed Jaipur table runners on Etsy about $28.50–39; Gond-art pillow covers made with artists (Powered by People) $27', big: '$27–39', src: 'etsy.com, poweredbypeople.com', url: 'https://poweredbypeople.com/products/nature-whisper-saal-tree-print-square-pillow-cover' },
-    { id: 'R20', label: 'Cost of folk art', value: 'Madhubani originals by artists about $30–300; freelance Madhubani commissions about ₹1,300–3,900 (about $15–45)', big: '$30–300', src: 'freelancer.in, ebay.com', url: 'https://www.freelancer.in/projects/art-installation/madhubani-canvas-painting-commission' },
+    { id: 'R18', label: 'Geographical Indications (India)', value: 'Madhubani GI 2007; Srikalahasti and Machilipatnam Kalamkari 2007–08; Odisha Pattachitra 2008; Warli 2014; Gond 2023 — registered under India’s GI Act, 1999', src: 'itokri.com, freepressjournal.in', url: 'https://itokri.com/blogs/craft-masala-by-itokri/gorgeous-art-forms-that-won-the-gi-tag' },
+    { id: 'R19', label: 'Competing authentic products', value: 'hand block-printed Jaipur table runners on Etsy about ' + U(28.5, 39) + '; Gond-art pillow covers made with artists (Powered by People) ' + U(27), big: '₹' + rs(27 * FX_REF) + '–' + rs(39 * FX_REF), src: 'etsy.com, poweredbypeople.com', url: 'https://poweredbypeople.com/products/nature-whisper-saal-tree-print-square-pillow-cover' },
+    { id: 'R20', label: 'Cost of folk art', value: 'Madhubani originals by artists about ' + U(30, 300) + '; freelance Madhubani commissions about ₹1,300–3,900', big: '₹' + rs(30 * FX_REF) + '–' + rs(300 * FX_REF), src: 'freelancer.in, ebay.com', url: 'https://www.freelancer.in/projects/art-installation/madhubani-canvas-painting-commission' },
     { id: 'R21', label: 'POD net margins', value: 'about 15–25% for new sellers competing on price; 30–45% for optimised shops', src: 'mydesigns.io', url: 'https://mydesigns.io/blog/print-on-demand-profit-margin/' },
-    { id: 'R22', label: 'Indian Americans', value: 'about 5.2M people in 2023', big: '5.2M', say: 'Indian Americans, a natural first audience (2023)', src: 'pewresearch.org', url: 'https://www.pewresearch.org/race-and-ethnicity/fact-sheet/asian-americans-indians-in-the-u-s/' }
+    { id: 'R22', label: 'Indian Americans', value: 'about 5.2M people in 2023', big: '5.2M', say: 'Indian Americans, a natural first audience (2023)', src: 'pewresearch.org', url: 'https://www.pewresearch.org/race-and-ethnicity/fact-sheet/asian-americans-indians-in-the-u-s/' },
+    { id: 'R23', label: 'Rupee per US dollar', value: '₹95.74 on 24 Sep 2026; ₹88.70 at the end of Oct 2025, so the rupee weakened about 8% in a year', src: 'dailypioneer.com, newsonair.gov.in', url: 'https://dailypioneer.com/news/slug-lite/rupee-falls-12-paise-to-close-at-rs-95-74-against-us-dollar?year=2026' },
+    { id: 'R24', label: 'GST on the sales themselves', value: 'goods sent from one place outside India to another without entering India are neither a supply of goods nor of services (CGST Schedule III, para 7), so no GST is due and no LUT is needed; for ITC reversal they are not counted as exempt supplies (s.17(3))', src: 'taxmann.com', url: 'https://www.taxmann.com/post/blog/no-gst-on-supply-of-goods-from-place-in-non-taxable-territory-to-another-place-in-non-taxable-territory-without-entering-into-india-aar/' },
+    { id: 'R25', label: 'GST on imported platform fees', value: 'Etsy’s invoices to Indian sellers carry no GST; the seller pays 18% under reverse charge, which in practice needs GST registration and monthly returns', src: 'base.com, alura.io', url: 'https://base.com/en-EN/help/knowledgebase/gst-compliance-for-sellers-from-india-using-base-com/' },
+    { id: 'R26', label: 'Paying in dollars from India', value: 'bank card forex markup typically about 3.5% plus GST; the government dropped the plan to bring international credit-card spends under LRS, so no TCS on them; LRS remittances by individuals above the annual threshold attract TCS', src: 'cardtrail.in, inc42.com', url: 'https://inc42.com/?p=404115' },
+    { id: 'R27', label: 'Indian business set-up and upkeep', value: 'sole proprietorship ₹0–2,000 to register; LLP about ₹6,000–10,000, then ₹15,000–60,000 a year; a CA charges about ₹1,500–5,000 a month for GST returns', src: 'franchiseindia.com, qwikfilings.com', url: 'https://www.franchiseindia.com/insights/en/article/business-registration-in-india-proprietorship-vs-llp-vs-pvt-ltd-2026.59778' },
+    { id: 'R28', label: 'Indian income tax', value: 'the Income-tax Act, 2025 applies from 1 Apr 2026; its Section 58 replaces 44AD: turnover up to ₹3 Cr (cash ≤ 5%) can declare 6% of banking-mode receipts as profit, or actual profit if higher', src: 'taxmann.com, accountune.com', url: 'https://www.taxmann.com/post/blog/opinion-complexity-within-simplicity-presumptive-taxation-under-the-income-tax-act/' }
   ];
   const RB = {}; RESEARCH.forEach(r => RB[r.id] = r);
   const SEV = { c: { label: 'Critical', cls: 'sev-c', icon: '▲' }, h: { label: 'High', cls: 'sev-h', icon: '◆' }, m: { label: 'Medium', cls: 'sev-m', icon: '●' } };
   const STRUCTURAL = [
     { sev: 'c', title: 'Etsy search decides your sales, and you cannot buy it', why: 'About 5.6M sellers compete on Etsy (R2) and print-on-demand listings are easy to copy. Organic buyers are the input the whole plan depends on; a ranking change, a copycat shop or a quiet quarter can halve them, and the model has no seasonality (most décor and gift sales fall in Q4).', fix: 'Build an email list and Pinterest boards from day one; run a 90-day pilot with 60–100 listings and measure views, conversion and orders before commissioning art at scale.' },
-    { sev: 'c', title: 'Authentic handmade Indian textiles sell at the same price', why: 'Hand block-printed Jaipur table runners sell on Etsy for about $28.50–39, and Gond-art pillow covers made with the artists for $27 (R19). A printed polyester version of a folk style at about $42 competes with the real thing at the same price or less.', fix: 'Sell what handmade sellers cannot make (yoga mats, shower curtains, large-format pieces) and named-artist collections with their story; never call a printed item handmade.' },
-    { sev: 'h', title: 'Authenticity, IP and GI-name risk', why: 'Madhubani, Warli, Gond, Pattachitra and Kalamkari are registered Geographical Indications in India (R18). Printing copied motifs, AI imitations or unlicensed scans invites takedowns, buyer complaints and a cultural-appropriation backlash; Etsy requires the design to be yours or commissioned by you (R8).', fix: 'Commission from named artists in the source regions with written licences (digital reproduction rights, credit, royalty); describe items as “printed reproduction of an original Madhubani painting by [artist]”.' },
+    { sev: 'c', title: 'Authentic handmade Indian textiles sell at the same price', why: 'Hand block-printed Jaipur table runners sell on Etsy for about ' + RB.R19.big + ', and Gond-art pillow covers made with the artists for less (R19). A printed polyester version of a folk style at about ₹4,000 competes with the real thing at the same price or less — often shipped by sellers in India too.', fix: 'Sell what handmade sellers cannot make (yoga mats, shower curtains, large-format pieces) and named-artist collections with their story; never call a printed item handmade.' },
+    { sev: 'h', title: 'GST on platform fees becomes a cost you cannot recover', why: 'Your sales are outside GST (R24), but Etsy, Shopify and Printify charge you for services from abroad, so you owe 18% under reverse charge (R25) and must register and file monthly. With no Indian output tax to set it against, that credit piles up unused and cannot be refunded as it would be for an export.', fix: 'Register for GST from the first sale, keep a CA on retainer (R27), and price every platform fee at 1.18×; ask the CA whether any Indian taxable sale (for example licensing designs to Indian buyers) can use the credit.' },
+    { sev: 'h', title: 'Authenticity, IP and GI-name risk, now inside Indian jurisdiction', why: 'Madhubani, Warli, Gond, Pattachitra and Kalamkari are registered Geographical Indications under India’s GI Act (R18), and an India-based seller is within its reach. Copied motifs, AI imitations or unlicensed scans also break Etsy’s rule that the design is yours or commissioned (R8).', fix: 'Commission from named artists in the source regions with written licences (digital reproduction rights, credit, royalty, paid by bank transfer with invoices); describe items as “printed reproduction of an original Madhubani painting by [artist]”.' },
+    { sev: 'h', title: 'Dollars in, dollars out, rupees in the middle', why: 'Buyers and Printify are paid in dollars, but your art, CA, ads and profit are in rupees. Payoneer takes about 2% on conversion plus withdrawal fees (R7), your bank card about 3.5% + GST on every Printify charge (R26), and a rupee that strengthens back towards ₹88.7 (R23) cuts every margin. Indian cards may also reject automatic dollar charges without extra authentication [assumption].', fix: 'Use a low- or zero-markup card or a funded Printify balance, keep Payoneer’s FIRA for every payout, and re-run the plan at ₹88 per US$.' },
     { sev: 'h', title: 'UK and EU sales need extra compliance', why: 'Etsy collects VAT on EU orders up to €150 and UK orders up to £135 (R17), but EU listings also need an EU responsible person and product-safety details under GPSR, and US-printed parcels are slow and dear to ship abroad.', fix: 'Sell to the EU only through POD partners with EU production and a responsible-person service, after the US shop has proven itself.' },
-    { sev: 'm', title: 'Cash timing and fees that rise with success', why: 'Printify and Printful charge when the order is placed, while Etsy can hold a new shop’s payouts in reserve (R7). Once sales pass $10K in 12 months, Offsite Ads become mandatory at 12% for good (R6).', fix: 'Keep a card limit or cash for one month of production costs; price for the 12% Offsite Ads fee from the start.' }
+    { sev: 'm', title: 'Cash timing and fees that rise with success', why: 'Printify and Printful charge when the order is placed, while Etsy pays weekly into Payoneer and can hold a new shop’s payouts in reserve (R7). Once sales pass the Offsite Ads threshold, the 12% fee is mandatory for good (R6).', fix: 'Keep cash or a card limit for one month of production costs; price for the 12% Offsite Ads fee from the start.' }
   ];
 
   const cloneSt = st => ({ setup: st.setup, cover: st.cover, s: Object.fromEntries(VARS.map(v => [v.k, st.s[v.k].slice()])) });
@@ -1268,16 +1293,17 @@ td.neg { color: var(--bad); }
   }
   const SHOCKS = [
     { name: 'Your plan as set', f: () => {} },
-    { name: 'Tax inside the price: 8% sales tax or VAT absorbed', f: s => { s.aov = s.aov.map(v => v / 1.08); } },
-    { name: 'Founder pay or a part-time assistant: +$2,000/month', f: s => { s.fixed = s.fixed.map(v => v + 2000); } },
+    { name: 'Tax inside the price: 8% US sales tax or VAT absorbed', f: s => { s.aov = s.aov.map(v => v / 1.08); } },
+    { name: 'Rupee strengthens 8% (back to about ₹88 per US$)', f: s => { s.fx = s.fx.map(v => v * 0.92); } },
+    { name: 'Founder pay or a part-time assistant: +₹50,000/month', f: s => { s.fixed = s.fixed.map(v => v + 50000); } },
     { name: 'Production + shipping +20%', f: s => { s.pod = s.pod.map(v => v * 1.2); } },
     { name: 'Organic buyers at half', f: s => { s.organic = s.organic.map(v => v / 2); } },
     { name: 'Cost per paid order doubles', f: s => { s.cac = s.cac.map(v => v * 2); } },
-    { name: 'Offsite Ads and fees: +3 points', f: s => { s.fee = s.fee.map(v => v + 3); } },
+    { name: 'Offsite Ads, GST and FX fees: +3 points', f: s => { s.fee = s.fee.map(v => v + 3); } },
     { name: 'Refunds and reprints +5 points', f: s => { s.ref = s.ref.map(v => Math.min(40, v + 5)); } },
     { name: 'Repeat orders at half', f: s => { s.rep = s.rep.map(v => v / 2); } },
     { name: 'Launch slips two quarters', f: s => { ['organic', 'mkt'].forEach(k => { s[k] = [0, 0].concat(s[k].slice(0, NQ - 2)); }); } },
-    { name: 'Combined: 8% tax absorbed, fixed +$1,000/month, production +10%, organic −30%', combined: true, f: s => { s.aov = s.aov.map(v => v / 1.08); s.fixed = s.fixed.map(v => v + 1000); s.pod = s.pod.map(v => v * 1.1); s.organic = s.organic.map(v => v * 0.7); } }
+    { name: 'Combined: 8% tax absorbed, fixed +₹25,000/month, production +10%, organic −30%', combined: true, f: s => { s.aov = s.aov.map(v => v / 1.08); s.fixed = s.fixed.map(v => v + 25000); s.pod = s.pod.map(v => v * 1.1); s.organic = s.organic.map(v => v * 0.7); } }
   ];
   function runStress() {
     return SHOCKS.map(sh => { const st = cloneSt(state); sh.f(st.s); return Object.assign({ name: sh.name, combined: !!sh.combined }, stressMetrics(st)); });
@@ -1289,31 +1315,38 @@ td.neg { color: var(--bad); }
     const qAt = (k, v) => 'Q' + (S[k].indexOf(v) + 1);
     const add = (sev, key, title, yours, bench, why, fix) => out.push({ sev, key, title, yours, bench, why, fix });
     const pOrg = maxOf('organic');
-    const visits = n => Math.round(n / 0.03).toLocaleString('en-US') + '–' + Math.round(n / 0.01).toLocaleString('en-US');
-    if (pOrg > 400) add('c', 'organic', 'Organic sales far beyond a typical single shop', pOrg.toLocaleString('en-US') + ' new buyers/month by ' + qAt('organic', pOrg), 'At 1–3% conversion (R13) that needs ' + visits(pOrg) + ' shop visits a month with no ads, against 5.6M competing sellers (R2)', 'Few new POD shops reach this; the plan rests on a top-seller outcome.', 'Size the plan on the measured views and conversion from a 90-day pilot.');
-    else if (pOrg > 60) add(pOrg > 150 ? 'h' : 'm', 'organic', 'Organic growth is unproven', pOrg.toLocaleString('en-US') + ' new buyers/month by ' + qAt('organic', pOrg), 'At 1–3% conversion (R13) that needs ' + visits(pOrg) + ' shop visits a month with no ads', 'Organic buyers are the input the plan depends on most. See the “Organic buyers at half” row in the stress test.', 'Track Etsy stats weekly in the pilot: views per listing, conversion, organic orders.');
+    const visits = n => Math.round(n / 0.03).toLocaleString('en-IN') + '–' + Math.round(n / 0.01).toLocaleString('en-IN');
+    if (pOrg > 400) add('c', 'organic', 'Organic sales far beyond a typical single shop', pOrg.toLocaleString('en-IN') + ' new buyers/month by ' + qAt('organic', pOrg), 'At 1–3% conversion (R13) that needs ' + visits(pOrg) + ' shop visits a month with no ads, against 5.6M competing sellers (R2)', 'Few new POD shops reach this; the plan rests on a top-seller outcome.', 'Size the plan on the measured views and conversion from a 90-day pilot.');
+    else if (pOrg > 60) add(pOrg > 150 ? 'h' : 'm', 'organic', 'Organic growth is unproven', pOrg.toLocaleString('en-IN') + ' new buyers/month by ' + qAt('organic', pOrg), 'At 1–3% conversion (R13) that needs ' + visits(pOrg) + ' shop visits a month with no ads', 'Organic buyers are the input the plan depends on most. See the “Organic buyers at half” row in the stress test.', 'Track Etsy stats weekly in the pilot: views per listing, conversion, organic orders.');
     if (S.organic[0] > 10) add('m', 'organic', 'Organic sales from month one', S.organic[0] + '/month in Q1', 'A new Etsy shop has no reviews or sales history', 'Early organic orders need a reason: an existing audience, press or a community.', 'Start Q1 near zero unless a named channel delivers it.');
     const cMin = minOf('cac');
-    if (cMin < 6) add('h', 'cac', 'Cost per paid order below the best case', usd(cMin) + ' per paid order', 'Etsy Ads about $6 a sale at 5% conversion, $15 at 2% (R13)', 'Paid orders this cheap would need conversion rates few shops reach.', 'Run a $3/day Etsy Ads test on proven listings and use the measured cost.');
-    else if (cMin < 10) add('m', 'cac', 'Cost per paid order at the low end', usd(cMin) + ' per paid order', 'Etsy Ads about $6–15 a sale (R13)', 'Below $10 assumes conversion near 4–5%.', 'Use the measured cost from the pilot.');
-    const scaled = S.mkt.map((m, i) => (m >= 1000 && S.cac[i] < 30 ? i : -1)).filter(i => i >= 0);
-    if (scaled.length) add('h', 'cac', 'Scaled ad spend at Etsy-ads prices', usd(S.mkt[scaled[0]]) + '/month at ' + usd(S.cac[scaled[0]]) + ' per paid order in Q' + (scaled[0] + 1), 'Meta ads about $38–46 per purchase (R14)', 'Etsy Ads cannot absorb large budgets on a few listings, so scaled spend moves to Meta and Pinterest, where orders cost far more.', 'Raise the cost per paid order to $30–45 in quarters with $1,000+ a month of ads.');
-    const ratio = S.pod.map((p, i) => p / S.aov[i]), rMin = Math.min(...ratio), keepMin = Math.min(...S.aov.map((a, i) => a * (1 - (S.fee[i] + S.ref[i] + S.roy[i]) / 100) - S.pod[i]));
-    if (keepMin <= 0) add('c', 'aov', 'Each order loses money', 'Margin per order ' + usdc(keepMin) + ' at its lowest', 'Base cost + shipping (R9–R10) plus about 10–15% fees (R5–R6)', 'Every sale deepens the loss, so growth cannot fix the plan.', 'Raise prices or drop the products with the thinnest margin (often yoga mats).');
-    else if (rMin < 0.35) add('h', 'pod', 'Production cost share looks low', Math.round(rMin * 100) + '% of order value at ' + qAt('pod', S.pod[ratio.indexOf(rMin)]), 'Printify pillowcase from about €9.99, shower curtain €34.82 (R9); Printful yoga mat about $57 with shipping (R10)', 'POD base cost plus shipping is usually 40–60% of a competitive Etsy price.', 'Price each product from real catalogue and shipping quotes, then blend by expected mix.');
+    if (cMin < 650) add('h', 'cac', 'Cost per paid order below the best case', inr(cMin) + ' per paid order', 'Etsy Ads about ₹574 a sale at 5% conversion, ₹1,436 at 2% (R13), plus 18% GST', 'Paid orders this cheap would need conversion rates few shops reach.', 'Run a ₹300-a-day Etsy Ads test on proven listings and use the measured cost.');
+    else if (cMin < 1100) add('m', 'cac', 'Cost per paid order at the low end', inr(cMin) + ' per paid order', 'Etsy Ads about ₹574–1,436 a sale (R13), plus 18% GST', 'Below ₹1,100 assumes conversion near 4–5%.', 'Use the measured cost from the pilot.');
+    const scaled = S.mkt.map((m, i) => (m >= 100000 && S.cac[i] < 3500 ? i : -1)).filter(i => i >= 0);
+    if (scaled.length) add('h', 'cac', 'Scaled ad spend at Etsy-ads prices', inr(S.mkt[scaled[0]]) + '/month at ' + inr(S.cac[scaled[0]]) + ' per paid order in Q' + (scaled[0] + 1), 'Meta ads about ₹3,637–4,402 per purchase (R14), plus 18% GST', 'Etsy Ads cannot absorb large budgets on a few listings, so scaled spend moves to Meta and Pinterest, where orders cost far more.', 'Raise the cost per paid order to ₹3,500–5,000 in quarters with ₹1 L+ a month of ads.');
+    const fxk = i => S.fx[i] / FX_REF;
+    const marg = S.aov.map((a, i) => a * fxk(i) * (1 - (S.fee[i] + S.ref[i] + S.roy[i]) / 100) - S.pod[i] * fxk(i)), keepMin = Math.min(...marg);
+    const ratio = S.pod.map((p, i) => p / S.aov[i]), rMin = Math.min(...ratio);
+    if (keepMin <= 0) add('c', 'aov', 'Each order loses money', 'Margin per order ' + inr(keepMin) + ' at its lowest', 'Base cost + shipping (R9–R10) plus about 15–20% Etsy, GST and FX fees for an India-based shop (R5–R7, R25)', 'Every sale deepens the loss, so growth cannot fix the plan.', 'Raise prices or drop the products with the thinnest margin (often yoga mats).');
+    else if (rMin < 0.35) add('h', 'pod', 'Production cost share looks low', Math.round(rMin * 100) + '% of order value at ' + qAt('pod', S.pod[ratio.indexOf(rMin)]), 'Printify pillowcase from about €9.99, shower curtain €34.82 (R9); Printful yoga mat about ₹5,470 with shipping (R10), before card forex markup (R26)', 'POD base cost plus shipping is usually 40–60% of a competitive Etsy price.', 'Price each product from real catalogue and shipping quotes, add the card markup, then blend by expected mix.');
+    else if (keepMin < 800) add('m', 'aov', 'Thin margin per order', inr(keepMin) + ' per order at its lowest', 'Etsy’s 5% + ₹25 processing for India (R5), 18% GST on fees (R25) and about 2% Payoneer conversion (R7) take more than a US seller pays', 'A margin this thin leaves little for ads, art and your time.', 'Test a higher price or a mix weighted to cushion covers and runners.');
     const etsyFee = Math.min(...S.fee.slice(0, 4));
-    if (etsyFee < 10) add('h', 'fee', 'Etsy-phase fees too low', etsyFee + '% in year 1', 'Etsy 6.5% + 3% + $0.25 + $0.20 (R5), plus 12–15% on Offsite Ads orders (R6)', 'On a $42 order Etsy’s fixed fees alone are about 10.6% before any Offsite Ads order.', 'Use 12–13% for Etsy-only quarters.');
-    if (minOf('fee') < 4) add('m', 'fee', 'Fees below even an own store', minOf('fee') + '%', 'Shopify Payments 2.9% + $0.30 online (R15)', 'An own store still pays card fees, apps and, on Etsy, Offsite Ads.', 'Keep at least 4–5% for own-store quarters and a blend while Etsy still sells.');
+    if (etsyFee < 16) add('h', 'fee', 'Etsy-phase fees too low for an India-based shop', etsyFee + '% in year 1', 'Etsy 6.5% + 5% + ₹25 + ₹19 renewal (R5), Offsite Ads 12–15% on some orders (R6), 18% GST on all of it (R25), about 2% Payoneer conversion (R7)', 'On a ₹4,000 order these come to about 18–19% before refunds.', 'Use 18–19% for Etsy-only quarters.');
+    if (minOf('fee') < 6) add('m', 'fee', 'Fees below even an own store', minOf('fee') + '%', 'Razorpay or Cashfree about 3% on international cards + Shopify’s 2% third-party fee (R15), + 18% GST', 'An Indian own store pays about 6% before currency conversion, and Etsy sales still carry their fees.', 'Keep at least 6–7% for own-store quarters and a blend while Etsy still sells.');
     const tax = base[1];
-    add(tax.pb === null || base[0].pb === null || tax.pb - base[0].pb > 12 ? 'h' : 'm', 'aov', 'Tax is assumed to sit on top of the price', usd(maxOf('aov')) + ' order value treated as all yours', 'Etsy adds US sales tax and EU/UK VAT at checkout (R16–R17); an own store must register per state on nexus', 'If you absorb 8% to keep prices round or VAT-inclusive, payback moves from ' + fmtM(base[0].pb) + ' to ' + fmtM(tax.pb) + '.', 'Decide tax-exclusive pricing on Etsy and plan nexus registration before the own store grows.');
+    add(tax.pb === null || base[0].pb === null || tax.pb - base[0].pb > 12 ? 'h' : 'm', 'aov', 'Tax is assumed to sit on top of the price', inr(maxOf('aov')) + ' order value treated as all yours', 'Etsy adds US sales tax and EU/UK VAT at checkout (R16–R17); the sales are outside Indian GST (R24); an own store must register per US state on nexus', 'If you absorb 8% to keep prices round or VAT-inclusive, payback moves from ' + fmtM(base[0].pb) + ' to ' + fmtM(tax.pb) + '.', 'Decide tax-exclusive pricing on Etsy and plan nexus registration before the own store grows.');
+    const fxMax = maxOf('fx'), fxMin = minOf('fx');
+    if (fxMax > FX_REF * 1.05) add('m', 'fx', 'The plan counts on a weaker rupee', '₹' + fxMax + ' per US$ by ' + qAt('fx', fxMax), '₹95.74 on 24 Sep 2026; ₹88.70 a year earlier (R23)', 'A weaker rupee lifts rupee sales, but no one can forecast it; the plan should work at today’s rate.', 'Keep the rate flat at today’s level and treat a weaker rupee as upside.');
+    else add('m', 'fx', 'Sales in dollars, costs partly in rupees', '₹' + fxMin + '–' + fxMax + ' per US$', 'The rupee moved about 8% in a year (R23)', 'A stronger rupee cuts the rupee value of every sale; see the “Rupee strengthens 8%” row in the stress test.', 'Re-check the plan at ₹88 per US$ before committing art and ad spend.');
     const fMin = minOf('fixed');
-    if (fMin < 1500) add(fMin < 300 ? 'h' : 'm', 'fixed', 'Fixed cost leaves out your own time', usd(fMin) + '/month', 'Design, listing, customer service and ads take 10–20 hours a week [assumption]; a part-time assistant costs about $2,000/month [assumption]', 'See the “Founder pay or a part-time assistant” row in the stress test.', 'Decide what an hour of your time is worth and put it in the fixed-cost curve.');
-    if (maxOf('rep') > 2) add('m', 'rep', 'Repeat orders are high for décor', maxOf('rep') + '% of past buyers a month', 'No sourced benchmark; décor and gifts are bought rarely [assumption]', 'Above 2% a month means a quarter of buyers order again every year.', 'Measure repeat orders in year 1 before relying on them.');
+    if (fMin < 75000) add(fMin < 25000 ? 'h' : 'm', 'fixed', 'Fixed cost leaves out your own time', inr(fMin) + '/month', 'Design, listings, customer service and ads take 10–20 hours a week [assumption]; a part-time assistant or modest founder pay costs about ₹50,000 a month [assumption]', 'See the “Founder pay or a part-time assistant” row in the stress test.', 'Decide what an hour of your time is worth and put it in the fixed-cost curve.');
+    if (minOf('fixed') < 2000) add('m', 'fixed', 'No budget for GST compliance', inr(minOf('fixed')) + '/month', 'Reverse-charge GST needs registration and monthly returns (R25); a CA charges about ₹1,500–5,000 a month (R27)', 'Missing returns brings late fees and blocks the GST registration.', 'Keep at least ₹2,000–3,000 a month for a CA.');
+    if (maxOf('rep') > 0.6) add('m', 'rep', 'Repeat orders are high for décor', maxOf('rep') + ' extra orders per buyer', 'No sourced benchmark; décor and gifts are bought rarely [assumption]', 'Above 0.6 means most buyers come back at least once.', 'Measure repeat orders in year 1 before relying on them.');
     if (minOf('ref') < 2) add('m', 'ref', 'Refunds look low', minOf('ref') + '% of earning', 'POD partners cover only their own misprints (R12)', 'Remorse, lost parcels and Etsy cases fall on you.', 'Keep 3–5% until you have a year of data.');
     if (minOf('roy') === 0) add('m', 'roy', 'No royalty to the artists', '0% in at least one quarter', 'Five of the styles are registered GIs (R18); Etsy requires the design to be yours or commissioned (R8)', 'Without a licence and a share for the artist, the authenticity story — your main edge over cheap copies — is weak and risky.', 'Agree a written licence and a royalty or a fair one-time fee per design.');
-    if (minOf('art') < 100) add('m', 'art', 'Too few new designs', usd(minOf('art')) + '/month', 'Freelance commissions about $15–45; originals $30–300 (R20)', 'POD shops grow by adding listings; a static catalogue fades in search.', 'Budget at least 2–4 new designs a month.');
-    if (maxOf('aov') > 60) add('m', 'aov', 'Order value above most comparable products', usd(maxOf('aov')) + ' per order', 'Authentic block-print runners about $28.50–39; Gond-art pillow covers $27 (R19)', 'Only yoga mats and shower curtains sit above $60; a mix weighted to them sells less often.', 'Model the product mix explicitly and test prices in the pilot.');
-    if (maxOf('pod') === minOf('pod') && maxOf('fixed') === fMin) add('m', 'pod', 'Costs never rise', 'Flat costs for 5 years', 'Printify Premium rose from $29 to $39 a month in Feb 2026 (R11)', 'Base costs, shipping and tools rise; flat costs flatter the later years.', 'Add 3–5% a year to production and fixed costs.');
+    if (minOf('art') < 8000) add('m', 'art', 'Too few new designs', inr(minOf('art')) + '/month', 'Freelance Madhubani commissions about ₹1,300–3,900 (R20); originals cost more', 'POD shops grow by adding listings; a static catalogue fades in search.', 'Budget at least 2–4 new designs a month.');
+    if (maxOf('aov') > 5750) add('m', 'aov', 'Order value above most comparable products', inr(maxOf('aov')) + ' per order', 'Authentic block-print runners and Gond-art covers about ' + RB.R19.big + ' (R19)', 'Only yoga mats and shower curtains sit above about ₹5,750; a mix weighted to them sells less often.', 'Model the product mix explicitly and test prices in the pilot.');
+    if (maxOf('pod') === minOf('pod') && maxOf('fixed') === fMin) add('m', 'pod', 'Costs never rise', 'Flat costs for 5 years', 'Printify Premium’s monthly price rose by about a third in Feb 2026 (R11)', 'Base costs, shipping, tools and CA fees rise; flat costs flatter the later years.', 'Add 3–5% a year to production and fixed costs.');
     return out;
   }
   const fmtM = m => (m === null ? 'never' : 'month ' + m);
@@ -1321,13 +1354,14 @@ td.neg { color: var(--bad); }
     const b = base[0], out = [];
     if (b.be === null) out.push({ sev: 'c', title: 'Your plan never breaks even', why: 'Monthly earning never overtakes expenditure within 10 years at these inputs.', fix: 'Fix the price and cost inputs flagged above before anything else.' });
     else if (b.pb === null || b.pb > 60) out.push({ sev: 'h', title: 'Payback takes more than five years', why: 'All invested cash comes back ' + (b.pb === null ? 'only after 10 years' : 'in month ' + b.pb) + '.', fix: 'Raise order value, cut fixed and art costs or grow organic sales through a named channel.' });
-    else if (b.pb > 36) out.push({ sev: 'm', title: 'Payback after year 3', why: 'Cash comes back in month ' + b.pb + '; for a side business that is a long wait for a small return.', fix: 'Show which input change brings payback inside 36 months.' });
-    if (b.peak > 25000) out.push({ sev: 'h', title: 'Funding need is large for a print-on-demand shop', why: 'Peak reserve ' + short(b.peak) + ' at month ' + b.peakM + '; POD is meant to need almost no capital.', fix: 'Cut fixed and art spend until organic sales are proven; stage spending against pilot milestones.' });
+    else if (b.pb > 36) out.push({ sev: 'm', title: 'Payback after year 3', why: 'Cash comes back in month ' + b.pb + '; for a side business that is a long wait.', fix: 'Show which input change brings payback inside 36 months.' });
+    if (b.peak > 2000000) out.push({ sev: 'h', title: 'Funding need is large for a print-on-demand shop', why: 'Peak reserve ' + short(b.peak) + ' at month ' + b.peakM + '; POD is meant to need almost no capital.', fix: 'Cut fixed and art spend until organic sales are proven; stage spending against pilot milestones.' });
     const yr5 = b.y5 || 0;
-    if (b.be !== null && yr5 < 24000) out.push({ sev: 'm', title: 'A side income, not a salary', why: 'Year-5 profit is about ' + short(yr5) + ' before any pay for your own time and before income and self-employment tax.', fix: 'Decide whether that is worth 10–20 hours a week, or add wholesale and licensing income.' });
+    if (b.be !== null && yr5 < 1200000) out.push({ sev: 'm', title: 'A side income, not a salary', why: 'Year-5 profit is about ' + short(yr5) + ' before any pay for your own time and before income tax (presumptive 6% of receipts under Section 58, R28).', fix: 'Decide whether that is worth 10–20 hours a week, or add wholesale and licensing income.' });
     const survive = base.slice(1, -1).filter(r => r.pb !== null && r.pb <= 60).length, shocks = base.length - 2;
     const comb = base[base.length - 1];
     if (comb.be === null) out.push({ sev: 'c', title: 'No margin of safety', why: 'Under the combined realistic shock the plan never breaks even, and funding need reaches ' + short(comb.peak) + ' and keeps rising. ' + survive + ' of ' + shocks + ' single shocks still pay back within five years.', fix: 'Plan for a downside case, not this plan, or prove the inputs in a pilot first.' });
+    else if (comb.pb === null || comb.pb > 72) out.push({ sev: 'h', title: 'Thin margin of safety', why: 'Under the combined realistic shock break-even moves to ' + fmtM(comb.be) + ' and payback to ' + fmtM(comb.pb) + '. ' + survive + ' of ' + shocks + ' single shocks still pay back within five years.', fix: 'Prove organic sales and order value in a pilot before committing the stage-2 money.' });
     else if (survive < shocks) out.push({ sev: 'h', title: 'Fragile to single shocks', why: (shocks - survive) + ' of ' + shocks + ' single shocks push payback past five years.', fix: 'Find the shocks in the table and test those inputs first.' });
     return out;
   }
@@ -1344,7 +1378,7 @@ td.neg { color: var(--bad); }
     const b = base[0], comb = base[base.length - 1];
     let vcls, vlabel, vtext;
     if (b.be === null || b.pb === null || b.pb > 72) { vcls = 'bad'; vlabel = 'Not investable as set'; vtext = 'Your plan does not pay back within six years before any shock is applied.'; }
-    else if (comb.be === null || ins.some(f => f.sev === 'c')) { vcls = 'warn'; vlabel = 'Fragile: pilot before raising'; vtext = 'The plan pays back in month ' + b.pb + ' as set, but it rests on inputs the research does not support' + (comb.be === null ? ' and fails under the combined shock' : '') + '.'; }
+    else if (comb.be === null || comb.pb === null || comb.pb > 72 || ins.some(f => f.sev === 'c')) { vcls = 'warn'; vlabel = 'Fragile: pilot before raising'; vtext = 'The plan pays back in month ' + b.pb + ' as set, but it rests on inputs the research does not support' + (comb.be === null ? ' and fails under the combined shock' : comb.pb === null || comb.pb > 72 ? ' and does not pay back within six years under the combined shock' : '') + '.'; }
     else { vcls = 'good'; vlabel = 'Pitchable, with caveats'; vtext = 'The plan survives the combined shock (payback ' + fmtM(comb.pb) + '). The structural loopholes below still need answers.'; }
     const tbl = '<div class="scroll"><table class="cr-table"><thead><tr><th scope="col">Shock applied to your plan</th><th scope="col">Break-even</th><th scope="col">Payback</th><th scope="col">Peak funding</th><th scope="col">5-year cash</th></tr></thead><tbody>' +
       base.map((r, i) => '<tr class="' + (i === 0 ? 'cr-base' : r.combined ? 'cr-comb' : '') + '"><td>' + esc(r.name) + '</td><td class="' + (r.be === null ? 'neg' : '') + '">' + (r.be === null ? 'Never' : 'Month ' + r.be) + '</td><td class="' + (r.pb === null || r.pb > 60 ? 'neg' : '') + '">' + (r.pb === null ? 'Not in 10 yrs' : 'Month ' + r.pb) + '</td><td>' + short(r.peak) + (r.peakM >= 60 ? '+' : '') + '</td><td class="' + (r.cum60 >= 0 ? 'pos' : 'neg') + '">' + short(r.cum60) + '</td></tr>').join('') + '</tbody></table></div>';
@@ -1355,7 +1389,7 @@ td.neg { color: var(--bad); }
     const insHtml = bySev(ins.concat(outc)).map(finding).join('') || '<p class="cr-ok">No input sits outside the research benchmarks. Check the structural loopholes below.</p>';
     const now = new Date();
     crCard.innerHTML =
-      '<div class="card-head"><div><h2>Red-team review</h2><p class="sub">Your inputs as of ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', checked against the research benchmarks and stress-tested over 5 years.</p></div>' +
+      '<div class="card-head"><div><h2>Red-team review</h2><p class="sub">Your inputs as of ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ', checked against the research benchmarks and stress-tested over 5 years.</p></div>' +
       '<div class="ed-tools"><button type="button" class="tool" id="crRerun">Re-run review</button><button type="button" class="tool" id="crClose">Close</button></div></div>' +
       '<p class="cr-stale" id="crStale" hidden>Your inputs changed after this review. Re-run it to update.</p>' +
       '<div class="verdict cr-verdict"><span class="pill ' + vcls + '"><span aria-hidden="true">' + (vcls === 'good' ? '▲' : vcls === 'warn' ? '◆' : '▼') + '</span>' + vlabel + '</span><p>' + esc(vtext) + ' <b>' + n('c') + ' critical, ' + n('h') + ' high, ' + n('m') + ' medium</b> loopholes.</p></div>' +
@@ -1383,9 +1417,9 @@ td.neg { color: var(--bad); }
     return [
       'You are a sceptical small-business lender and red-team analyst. Review this business plan and find its loopholes. Be direct and specific; do not flatter.',
       '',
-      'THE BUSINESS: a US-registered LLC that commissions original art in traditional Indian folk styles (Madhubani, Warli, Gond, Pattachitra, Kalamkari) and sells it printed on demand by Printify or Printful on products without sizes: scarves, bandanas, yoga mats, cushion covers, table runners, placemats and shower curtains. Etsy first (US buyers), an own Shopify store from year 2, then UK and EU. No inventory; the POD partner prints and ships each order. The founder is a solo operator whose time is not costed unless entered in fixed cost.',
+      'THE BUSINESS: a business run from India (sole proprietorship, GST-registered) that commissions original art in traditional Indian folk styles (Madhubani, Warli, Gond, Pattachitra, Kalamkari) from Indian artists, paid in rupees, and sells it printed on demand by Printify or Printful in the US on products without sizes: scarves, bandanas, yoga mats, cushion covers, table runners, placemats and shower curtains. Etsy first (US buyers, paid in US$, payouts via Payoneer), an own Shopify store from year 2 (Razorpay or Cashfree, since Shopify Payments is not available in India), then UK and EU. The goods never enter India, so the sales are outside Indian GST, but 18% GST is due under reverse charge on imported platform fees. No inventory. All amounts are in Indian rupees. The founder is a solo operator whose time is not costed unless entered in fixed cost.',
       '',
-      'MODEL: monthly simulation. New buyers = organic + paid, where paid = marketing budget ÷ cost per paid order. Buyers join a past-buyer pool that shrinks by the monthly drop-off; repeat orders = pool × monthly repeat-order rate. Earning = orders × average order value. Expenditure = fixed cost + art commissions + marketing budget + production and shipping per order + platform fees, refunds and artist royalty as shares of earning. Setup cost ' + usd(state.setup) + '. US sales tax and EU/UK VAT are collected by Etsy on top and not modelled; no seasonality; no income tax. Peak funding = next ' + state.cover + ' months of fixed, art and marketing costs with zero revenue minus profit to date.',
+      'MODEL: monthly simulation in rupees. New buyers = organic + paid, where paid = marketing budget ÷ cost per paid order. Buyers join a past-buyer pool that shrinks 4% a month; repeat orders spread each buyer’s lifetime repeat orders over it. Order value and production cost are entered in rupees at ₹' + FX_REF + ' per US$ and rescaled by the quarter’s ₹/US$ input. Earning = orders × order value. Expenditure = fixed cost + art commissions + marketing budget + production and shipping per order + platform, payment, FX and GST-on-fee charges, refunds and artist royalty as shares of earning. Setup cost ' + inr(state.setup) + '. US sales tax and EU/UK VAT are collected by Etsy on top; no seasonality; no income tax. Peak funding = next ' + state.cover + ' months of fixed, art and marketing costs with zero revenue minus profit to date.',
       '',
       'THE FOUNDER’S INPUTS (each value is one quarter of 3 months):',
       inputs,
@@ -1459,40 +1493,41 @@ td.neg { color: var(--bad); }
     PRESETS.forEach(p => { if (sameSeries(state.s, p.make())) name = p.label; });
     return name;
   }
-  function usdK(v) { const a = Math.abs(v), sign = v < -0.5 ? MINUS : ''; return sign + (a >= 1e6 ? '$' + trim(a / 1e6, 2) + 'M' : a >= 1e4 ? '$' + trim(a / 1e3, 1) + 'K' : '$' + Math.round(a).toLocaleString('en-US')); }
+  function lakhs(v) { return (v < -500 ? MINUS : '') + '₹' + trim(Math.abs(v) / 1e5, 1) + ' L'; }
   function computeHats() {
     const base = runStress(), A = analyze(state, 60);
     const ins = inputChecks(A, base), outc = outcomeChecks(base);
     const b = base[0], comb = base[base.length - 1], measured = !!state.measured;
     const insCH = ins.filter(f => f.sev === 'c' || f.sev === 'h');
     const S = state.s;
-    // pilot: first 3 months of fixed, art and marketing, plus about $1,000 for the LLC, 20 designs and samples
-    const pilotCost = Math.round(([1, 2, 3].reduce((s, m) => { const r = A.long[m - 1]; return s + r.fixed + r.art + r.mkt; }, 0) + 1000) / 250) * 250;
-    const raise = Math.max(500, Math.round(b.peak * 1.12 / 500) * 500);
+    // pilot: first 3 months of fixed, art and marketing, plus about ₹50,000 for registration, 10 designs and samples
+    const pilotCost = Math.round(([1, 2, 3].reduce((s, m) => { const r = A.long[m - 1]; return s + r.fixed + r.art + r.mkt; }, 0) + 50000) / 10000) * 10000;
+    const raise = Math.max(10000, Math.round(b.peak * 1.12 / 10000) * 10000);
     const fmt = m => (m === null ? 'never' : 'month ' + m);
+    const fxRow = base.find(r => /^Rupee/.test(r.name));
     const hats = [];
     hats.push({ key: 'white', name: 'White', role: 'facts', color: 'FBFCFB', css: '#fbfcfb',
       lean: measured && insCH.length === 0 ? 'GO' : 'Mixed',
-      finding: 'Demand is real: 86.5M Etsy buyers, Home & Living its top category (R1), 38.4M US adults doing yoga (R4). But 5.6M sellers compete (R2). ' + (measured ? 'You marked these inputs as pilot-measured. ' : 'Your inputs are assumptions, not measurements. ') + (insCH.length ? insCH.length + (insCH.length === 1 ? ' of them sits' : ' of them sit') + ' outside the research benchmarks.' : 'None sit outside the research benchmarks.') });
+      finding: 'Demand is real: 86.5M Etsy buyers, Home & Living its top category (R1), 38.4M US adults doing yoga (R4). But 5.6M sellers compete (R2), and an India-based shop pays 5% + ₹25 processing, 18% GST on fees and about 2% conversion (R5, R7, R25). ' + (measured ? 'You marked these inputs as pilot-measured. ' : 'Your inputs are assumptions, not measurements. ') + (insCH.length ? insCH.length + (insCH.length === 1 ? ' of them sits' : ' of them sit') + ' outside the research benchmarks.' : 'None sit outside the research benchmarks.') });
     hats.push({ key: 'red', name: 'Red', role: 'feelings', color: 'D03B3B', css: '#d03b3b',
       lean: measured ? 'GO' : 'Mixed',
-      finding: measured ? 'Strangers paid full price in the pilot, so the designs sell, not just the idea.' : 'Friends will love the designs; strangers on Etsy compare a printed polyester item with handmade block prints at the same price (R19), and are unproven.' });
+      finding: measured ? 'Strangers paid full price in the pilot, so the designs sell, not just the idea.' : 'Working with Indian artists in rupees feels right and authentic; strangers on Etsy still compare a printed polyester item with handmade block prints at the same price (R19), and are unproven.' });
     const blackLean = (b.pb === null || b.pb > 60 || comb.be === null) ? 'NOT TO GO' : (comb.pb === null || comb.pb > 72 ? 'Mixed' : 'GO');
     hats.push({ key: 'black', name: 'Black', role: 'risks', color: '0E1A27', css: '#0e1a27', lean: blackLean,
-      finding: 'As set, payback is ' + fmt(b.pb) + '. Under the combined shock (8% tax absorbed, fixed +$1,000 a month, production +10%, organic −30%) break-even is ' + fmt(comb.be) + ' and peak funding ' + usdK(comb.peak) + '. One Etsy ranking change can halve organic sales, and copied or unlicensed motifs invite takedowns (R8, R18).' });
+      finding: 'As set, payback is ' + fmt(b.pb) + '. Under the combined shock (8% tax absorbed, fixed +₹25,000 a month, production +10%, organic −30%) break-even is ' + fmt(comb.be) + ' and peak funding ' + lakhs(comb.peak) + '. A rupee back at about ₹88 moves payback to ' + fmt(fxRow ? fxRow.pb : null) + '. GST on platform fees cannot be recovered (R24–R25), and copied or unlicensed motifs invite takedowns (R8, R18).' });
     const yLean = b.cum60 > 0 ? 'GO' : (b.be !== null && b.be <= 36 ? 'Mixed' : 'NOT TO GO');
     hats.push({ key: 'yellow', name: 'Yellow', role: 'upside', color: 'E8B400', css: '#e8b400', lean: yLean,
-      finding: '5-year cash ' + (b.cum60 >= 0 ? '+' : '') + usdK(b.cum60) + ', ' + Math.round(A.long[35].paying).toLocaleString('en-US') + ' orders a month by month 36, only ' + usdK(state.setup) + ' setup and no inventory, and a licensed design library that moves to any channel.' });
+      finding: '5-year cash ' + (b.cum60 >= 0 ? '+' : '') + lakhs(b.cum60) + ', ' + Math.round(A.long[35].paying).toLocaleString('en-IN') + ' orders a month by month 36, only ' + lakhs(state.setup) + ' setup and no inventory. Art, compliance and overheads are paid in rupees, and presumptive tax on 6% of receipts (R28) keeps income tax low, even though each order keeps less after an India-based shop’s higher Etsy, GST and FX charges.' });
     const ideas = [];
     if (ins.some(f => f.key === 'organic')) ideas.push('an email list and Pinterest from day one so sales do not hang on Etsy search');
-    if (ins.some(f => f.key === 'fixed') || b.pb === null || b.pb > 48) ideas.push('wholesale to yoga studios and Indian-owned boutiques for steadier volume');
+    if (ins.some(f => f.key === 'fixed') || b.pb === null || b.pb > 48) ideas.push('wholesale to yoga studios and Indian-owned boutiques abroad for steadier volume');
     ideas.push('named-artist collections with a royalty as the brand story that copies cannot match');
     hats.push({ key: 'green', name: 'Green', role: 'ideas', color: '1F9D6B', css: '#1f9d6b', lean: 'GO', finding: 'Reshape the weak points: ' + ideas.join('; ') + '.' });
     let go, label, text;
     if (b.be === null || b.pb === null || b.pb > 72) { go = false; label = 'NOT TO GO'; text = 'The plan as set does not pay back within six years. Change the inputs before anything else.'; }
-    else if (!measured) { go = false; label = 'NOT TO GO — pilot first'; text = 'No art or ad money at scale on assumptions. Spend about ' + usdK(pilotCost) + ' on a 90-day Etsy pilot (60–100 listings); if it passes, commit about ' + usdK(raise) + ' (peak funding ' + usdK(b.peak) + ' plus a buffer).'; }
+    else if (!measured) { go = false; label = 'NOT TO GO — pilot first'; text = 'No art or ad money at scale on assumptions. Spend about ' + lakhs(pilotCost) + ' on a 90-day Etsy pilot (60–100 listings); if it passes, commit about ' + lakhs(raise) + ' (peak funding ' + lakhs(b.peak) + ' plus a buffer).'; }
     else if (blackLean === 'NOT TO GO' || ins.some(f => f.sev === 'c')) { go = false; label = 'NOT TO GO'; text = 'Even with measured inputs the plan has no margin of safety under the combined shock. Fix the cost base or price first.'; }
-    else { go = true; label = 'GO'; text = 'Measured inputs, payback in ' + fmt(b.pb) + ' and a plan that survives the combined shock. Commit about ' + usdK(raise) + '.'; }
+    else { go = true; label = 'GO'; text = blackLean === 'GO' ? 'Measured inputs, payback in ' + fmt(b.pb) + ' and a plan that survives the combined shock. Commit about ' + lakhs(raise) + '.' : 'Measured inputs and payback in ' + fmt(b.pb) + '. Under the combined shock it breaks even only in ' + fmt(comb.be) + ' and ' + (comb.pb ? 'pays back in month ' + comb.pb : 'does not pay back within 10 years') + ', so commit about ' + lakhs(raise) + ' in stages against monthly results.'; }
     hats.push({ key: 'blue', name: 'Blue', role: 'decision', color: '2A6FDB', css: '#2a6fdb', lean: go ? 'GO' : 'NOT TO GO', finding: text });
     return { hats, go, label, text, base, A, ins, outc, b, comb, pilotCost, raise, measured };
   }
@@ -1521,13 +1556,14 @@ td.neg { color: var(--bad); }
     return { H, A, S, b, q, qn, years, peakNew, peakQ, mix, findings, scenario: scenarioName(), date: new Date() };
   }
   const QS = [0, 3, 7, 11, 19];
-  const SHORTV = { organic: 'Organic buyers / mo', mkt: 'Marketing $ / mo', cac: 'Cost per paid order', rep: 'Repeat-order rate', attr: 'Past-buyer drop-off', aov: 'Order value', pod: 'Production + shipping', fee: 'Platform fees', ref: 'Refunds', roy: 'Artist royalty', art: 'Art $ / mo', fixed: 'Fixed cost $ / mo' };
+  const SHORTV = { organic: 'Organic buyers / mo', mkt: 'Marketing ₹ / mo', cac: 'Cost per paid order', rep: 'Repeat orders / buyer', aov: 'Order value', pod: 'Production + shipping', fx: '₹ per US$', fee: 'Platform & FX fees', ref: 'Refunds', roy: 'Artist royalty', art: 'Art ₹ / mo', fixed: 'Fixed cost ₹ / mo' };
   function inputRow(v) { return [v.label + ' (' + v.unit + ')'].concat(QS.map(i => fmtV(v, state.s[v.k][i]))); }
 
   function businessCaseSections(R) {
     const { H, A, S, b, q, qn, years } = R, fm = m => (m === null ? 'Not reached' : 'Month ' + m);
     const secs = [];
-    secs.push({ h: 'Verdict: ' + H.label, p: [H.text, 'Settings: ' + R.scenario + '. Generated from the Folk-Art Print-on-Demand P&L Simulator on ' + R.date.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) + '. All figures are projections from the inputs below, not measured results' + (H.measured ? ', except where the founder marked inputs as pilot-measured.' : '.')] });
+    const fxRow = H.base.find(r => /^Rupee/.test(r.name));
+    secs.push({ h: 'Verdict: ' + H.label, p: [H.text, 'Settings: ' + R.scenario + '. Generated from the Folk-Art Print-on-Demand P&L Simulator (India-based seller, amounts in rupees) on ' + R.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) + '. All figures are projections from the inputs below, not measured results' + (H.measured ? ', except where the founder marked inputs as pilot-measured.' : '.')] });
     const DEFS = baseSeries();
     const runs = (v, arr) => {
       const parts = []; let st = 0;
@@ -1536,33 +1572,34 @@ td.neg { color: var(--bad); }
     };
     const changed = VARS.filter(v => S[v.k].some((x, i) => x !== DEFS[v.k][i]));
     secs.push({ h: 'Simulation settings set by you', intro: ['These are the inputs behind every number in this business case. ' + (changed.length ? changed.length + ' of the ' + VARS.length + ' quarterly variables ' + (changed.length === 1 ? 'differs' : 'differ') + ' from the simulator defaults: ' + changed.map(v => v.label.toLowerCase()).join(', ') + '.' : 'All ' + VARS.length + ' quarterly variables are at the simulator defaults (' + PRESETS[0].label + ').')],
-      bullets: ['Scenario: ' + R.scenario + '.', 'One-time setup cost: ' + usd(state.setup) + (state.setup !== DEF.setup ? ' (changed; default ' + usd(DEF.setup) + ').' : ' (default).'), 'Cash reserve cover: ' + state.cover + ' months' + (state.cover !== DEF.cover ? ' (changed; default ' + DEF.cover + ').' : ' (default).'), 'Inputs measured in a pilot: ' + (H.measured ? 'yes, so the verdict can reach GO.' : 'no, so the verdict cannot go higher than “pilot first”.'), 'Timeline view in the simulator: ' + horizonLabel() + ' (changes the charts only). This business case always projects 5 years, and its unit economics use quarter ' + (q + 1) + ' settings.'],
+      bullets: ['Scenario: ' + R.scenario + '.', 'One-time setup cost: ' + inr(state.setup) + (state.setup !== DEF.setup ? ' (changed; default ' + inr(DEF.setup) + ').' : ' (default).'), 'Cash reserve cover: ' + state.cover + ' months' + (state.cover !== DEF.cover ? ' (changed; default ' + DEF.cover + ').' : ' (default).'), 'Inputs measured in a pilot: ' + (H.measured ? 'yes, so the verdict can reach GO.' : 'no, so the verdict cannot go higher than “pilot first”.'), 'Order value and production cost are entered at ₹' + FX_REF + ' per US$ (R23) and rescaled by the ₹/US$ setting.', 'Timeline view in the simulator: ' + horizonLabel() + ' (changes the charts only). This business case always projects 5 years, and its unit economics use quarter ' + (q + 1) + ' settings.'],
       table: { head: ['Variable', 'Unit', 'Your setting', 'Simulator default', 'Status'], rows: VARS.map(v => [v.label, v.unit, runs(v, S[v.k]), runs(v, DEFS[v.k]), changed.includes(v) ? 'Changed' : 'Default']) } });
     secs.push({ h: 'Executive summary', bullets: [
-      'A US-registered LLC that commissions original art in traditional Indian folk styles (Madhubani, Warli, Gond, Pattachitra, Kalamkari) from named artists and sells it printed on demand on products without sizes: scarves, bandanas, yoga mats, cushion covers, table runners, placemats and shower curtains. Etsy first, an own Shopify store from year 2, UK and EU later. No inventory.',
+      'A business run from India that commissions original art in traditional Indian folk styles (Madhubani, Warli, Gond, Pattachitra, Kalamkari) from named Indian artists, paid in rupees, and sells it printed on demand in the US by Printify or Printful on products without sizes: scarves, bandanas, yoga mats, cushion covers, table runners, placemats and shower curtains. Etsy first, an own Shopify store from year 2, UK and EU later. No inventory.',
+      'Tax position: the goods never enter India, so the sales are outside GST (Schedule III para 7, R24) and need no LUT; 18% GST is due under reverse charge on Etsy, Shopify and Printify fees (R25), which makes GST registration and monthly returns necessary. Income tax can be presumptive at 6% of banking-mode receipts under Section 58 of the Income-tax Act, 2025 (R28).',
       'Monthly break-even: ' + fm(b.be).toLowerCase() + '. Payback of all invested cash, setup included: ' + fm(b.pb).toLowerCase() + '.',
-      'Peak funding need (' + state.cover + ' months of fixed, art and marketing costs with zero revenue, minus profit to date): ' + usdK(b.peak) + ' at month ' + b.peakM + '.',
-      'Year-1 result after ' + usdK(state.setup) + ' setup: ' + (years[0].net >= 0 ? '+' : '') + usdK(years[0].net) + '. Year-5 profit: ' + (years[4].net >= 0 ? '+' : '') + usdK(years[4].net) + ', before any pay for the founder’s time and before income and self-employment tax. Five-year cumulative cash: ' + (b.cum60 >= 0 ? '+' : '') + usdK(b.cum60) + '.',
-      'Under the combined realistic shock, break-even is ' + fm(H.comb.be).toLowerCase() + ' and peak funding reaches ' + usdK(H.comb.peak) + '.'
+      'Peak funding need (' + state.cover + ' months of fixed, art and marketing costs with zero revenue, minus profit to date): ' + lakhs(b.peak) + ' at month ' + b.peakM + '.',
+      'Year-1 result after ' + lakhs(state.setup) + ' setup: ' + (years[0].net >= 0 ? '+' : '') + lakhs(years[0].net) + '. Year-5 profit: ' + (years[4].net >= 0 ? '+' : '') + lakhs(years[4].net) + ', before any pay for the founder’s time and before income tax. Five-year cumulative cash: ' + (b.cum60 >= 0 ? '+' : '') + lakhs(b.cum60) + '.',
+      'If the rupee strengthens 8% (to about ₹88 per US$), payback moves to ' + fm(fxRow ? fxRow.pb : null).toLowerCase() + '. Under the combined realistic shock, break-even is ' + fm(H.comb.be).toLowerCase() + ' and peak funding reaches ' + lakhs(H.comb.peak) + '.'
     ] });
-    secs.push({ h: 'Market (research)', table: { head: ['Fact', 'Figure', 'Source'], rows: RESEARCH.map(r => [r.id + ' · ' + r.label, r.value, r.url ? '[' + r.src + '](' + r.url + ')' : r.src]) }, p: ['TAM: US home décor, ' + RB.R3.big + ' (R3). SAM: Etsy Home & Living, reported at about $3.5B GMS (R1), plus yoga buyers (R4) and Indian Americans (R22). SOM: the plan peaks at ' + Math.round(R.peakNew).toLocaleString('en-US') + ' new buyers a month by Q' + R.peakQ + ', about ' + usdK(years[4].rev) + ' of sales in year 5.'] });
+    secs.push({ h: 'Market (research)', table: { head: ['Fact', 'Figure', 'Source'], rows: RESEARCH.map(r => [r.id + ' · ' + r.label, r.value, r.url ? '[' + r.src + '](' + r.url + ')' : r.src]) }, p: ['Dollar figures are converted at ₹' + FX_REF + ' per US$ (R23), with the original in brackets. TAM: US home décor, ' + RB.R3.big + ' (R3). SAM: Etsy Home & Living, reported at about ' + RB.R1.sam + ' GMS (R1), plus yoga buyers (R4) and Indian Americans (R22). SOM: the plan peaks at ' + Math.round(R.peakNew).toLocaleString('en-IN') + ' new buyers a month by Q' + R.peakQ + ', about ' + lakhs(years[4].rev) + ' of sales in year 5.'] });
     secs.push({ h: 'Unit economics (' + qn + ', end of view)', bullets: [
-      'Lifetime revenue per buyer: ' + usdc(A.ltv) + ' (' + A.ordersPer.toFixed(2) + ' orders × ' + usdc(S.aov[q]) + ', after ' + S.fee[q] + '% platform fees).',
-      'Margin per order after production and shipping (' + usdc(S.pod[q]) + '), fees, refunds and royalty: ' + usdc(A.marginOrder) + '.',
-      'Acquisition cost per buyer: ' + usdc(A.acqPaying) + ' blended (marketing ÷ all new buyers); paid buyers cost ' + usd(S.cac[q]) + ' each.',
-      'Margin per new buyer before fixed costs, art and marketing: ' + usdc(A.contribNew) + '.',
-      'Break-even volume: ' + (isFinite(A.needN) ? Math.ceil(A.needN).toLocaleString('en-US') + ' new buyers a month; the plan has ' + Math.round(A.nlRef).toLocaleString('en-US') + '.' : 'never — each buyer loses money.')
+      'Lifetime revenue per buyer: ' + inrc(A.ltv) + ' (' + A.ordersPer.toFixed(2) + ' orders × ' + inrc(A.aovRef) + ' at ₹' + S.fx[q] + ' per US$, after ' + S.fee[q] + '% platform, payment, FX and GST-on-fee charges).',
+      'Margin per order after production and shipping (' + inrc(A.podRef) + '), fees, refunds and royalty: ' + inrc(A.marginOrder) + '.',
+      'Acquisition cost per buyer: ' + inrc(A.acqPaying) + ' blended (marketing ÷ all new buyers); paid buyers cost ' + inr(S.cac[q]) + ' each.',
+      'Margin per new buyer before fixed costs, art and marketing: ' + inrc(A.contribNew) + '.',
+      'Break-even volume: ' + (isFinite(A.needN) ? Math.ceil(A.needN).toLocaleString('en-IN') + ' new buyers a month; the plan has ' + Math.round(A.nlRef).toLocaleString('en-IN') + '.' : 'never — each buyer loses money.')
     ] });
-    secs.push({ h: 'Five-year projection', table: { head: ['Year', 'Revenue', 'Expenditure', 'Net', 'Cumulative cash', 'Orders in the year’s last month'], rows: years.map(y => ['Year ' + y.k, usdK(y.rev), usdK(y.spend), (y.net >= 0 ? '+' : '') + usdK(y.net), (y.cum >= 0 ? '+' : '') + usdK(y.cum), Math.round(y.paying).toLocaleString('en-US')]) }, p: ['Year-1 expenditure includes the one-time setup cost. Income tax and self-employment tax (on a single-member LLC’s profit) are not deducted.'] });
-    secs.push({ h: 'Stress test', table: { head: ['Shock', 'Break-even', 'Payback', 'Peak funding', '5-year cash'], rows: H.base.map(r => [r.name, fm(r.be), fm(r.pb), usdK(r.peak) + (r.peakM >= 60 ? '+' : ''), (r.cum60 >= 0 ? '+' : '') + usdK(r.cum60)]) } });
+    secs.push({ h: 'Five-year projection', table: { head: ['Year', 'Revenue', 'Expenditure', 'Net', 'Cumulative cash', 'Orders in the year’s last month'], rows: years.map(y => ['Year ' + y.k, lakhs(y.rev), lakhs(y.spend), (y.net >= 0 ? '+' : '') + lakhs(y.net), (y.cum >= 0 ? '+' : '') + lakhs(y.cum), Math.round(y.paying).toLocaleString('en-IN')]) }, p: ['Year-1 expenditure includes the one-time setup cost. Income tax is not deducted; under Section 58 presumptive taxation (R28) the taxable profit can be 6% of banking-mode receipts.'] });
+    secs.push({ h: 'Stress test', table: { head: ['Shock', 'Break-even', 'Payback', 'Peak funding', '5-year cash'], rows: H.base.map(r => [r.name, fm(r.be), fm(r.pb), lakhs(r.peak) + (r.peakM >= 60 ? '+' : ''), (r.cum60 >= 0 ? '+' : '') + lakhs(r.cum60)]) } });
     secs.push({ h: 'Loopholes (red-team)', table: { head: ['Severity', 'Loophole', 'Fix or test'], rows: R.findings.map(f => [SEV[f.sev].label, f.title, f.fix]) } });
     secs.push({ h: 'Six Thinking Hats', table: { head: ['Hat', 'Finding', 'Leans'], rows: H.hats.map(h => [h.name + ' (' + h.role + ')', h.finding, h.lean]) }, p: ['Verdict: ' + H.label + '. ' + H.text] });
     secs.push({ h: 'Funding plan', bullets: H.go
-      ? ['Commit about ' + usdK(H.raise) + ': the ' + usdK(b.peak) + ' peak funding need plus a 12% buffer, from savings or a small loan.', 'Milestones: monthly break-even ' + fm(b.be).toLowerCase() + '; full payback ' + fm(b.pb).toLowerCase() + '.']
-      : ['Stage 1: about ' + usdK(H.pilotCost) + ' for a 90-day Etsy pilot: 60–100 listings across 4–6 products, about 20 licensed designs from 3–4 artists, samples of every product, Etsy Ads at about $3 a day on listings that already sell (the first 3 months of costs plus a light setup).', 'Stage 2: about ' + usdK(H.raise) + ' (peak funding ' + usdK(b.peak) + ' plus a 12% buffer), committed only if the pilot passes.', 'Pilot pass marks: 2%+ visit-to-order conversion; 30+ organic orders in month 3; average order value $38+; refunds 3% or less; Etsy Ads return 3× or better (R13); written licences signed with every artist; samples of every product pass a wash and colour check.'] });
-    secs.push({ h: 'Spend to ' + (b.be ? 'break-even' : 'month 24') + ' (' + R.mix.months + ' months)', table: { head: ['Line', 'Amount', 'Share'], rows: [['Production and shipping', R.mix.pod], ['Tools and fixed costs', R.mix.fixed], ['Art commissions', R.mix.art], ['Setup', R.mix.setup], ['Marketing', R.mix.mkt], ['Platform and payment fees', R.mix.gw], ['Refunds and artist royalty', R.mix.other]].map(r => [r[0], usdK(r[1]), Math.round(r[1] / R.mix.total * 100) + '%']) }, p: ['Total ' + usdK(R.mix.total) + '; revenue over the same months ' + usdK(R.mix.rev) + '.'] });
+      ? ['Commit about ' + lakhs(H.raise) + ': the ' + lakhs(b.peak) + ' peak funding need plus a 12% buffer, from savings or a small MSME loan.', 'Milestones: monthly break-even ' + fm(b.be).toLowerCase() + '; full payback ' + fm(b.pb).toLowerCase() + '.']
+      : ['Stage 1: about ' + lakhs(H.pilotCost) + ' for a 90-day Etsy pilot: proprietorship, GST registration and Udyam; 60–100 listings across 4–6 products; about 20 licensed designs from 3–4 Indian artists; samples of every product; Etsy Ads at about ₹300 a day on listings that already sell (the first 3 months of costs plus a light setup).', 'Stage 2: about ' + lakhs(H.raise) + ' (peak funding ' + lakhs(b.peak) + ' plus a 12% buffer), committed only if the pilot passes.', 'Pilot pass marks: 2%+ visit-to-order conversion; 30+ organic orders in month 3; order value ₹3,650+ at today’s rate; refunds 3% or less; Etsy Ads return 3× or better (R13); a working way to pay Printify from India without declines; written licences signed with every artist; samples of every product pass a wash and colour check.'] });
+    secs.push({ h: 'Spend to ' + (b.be ? 'break-even' : 'month 24') + ' (' + R.mix.months + ' months)', table: { head: ['Line', 'Amount', 'Share'], rows: [['Production and shipping', R.mix.pod], ['Tools, CA and fixed costs', R.mix.fixed], ['Art commissions', R.mix.art], ['Setup', R.mix.setup], ['Marketing', R.mix.mkt], ['Platform, payment, FX and GST-on-fee charges', R.mix.gw], ['Refunds and artist royalty', R.mix.other]].map(r => [r[0], lakhs(r[1]), Math.round(r[1] / R.mix.total * 100) + '%']) }, p: ['Total ' + lakhs(R.mix.total) + '; revenue over the same months ' + lakhs(R.mix.rev) + '.'] });
     secs.push({ h: 'Appendix: quarter-by-quarter settings', intro: ['Every value you set in the simulator, for all 20 quarters (5 years). Months after quarter 20 reuse quarter 20.'], table: { head: ['Quarter'].concat(VARS.map(v => SHORTV[v.k])), rows: Array.from({ length: NQ }, (_, i) => ['Q' + (i + 1) + ' (months ' + (3 * i + 1) + '–' + (3 * i + 3) + ')'].concat(VARS.map(v => fmtV(v, S[v.k][i])))) } });
-    secs.push({ h: 'Method', p: ['Monthly model: new buyers = organic + marketing budget ÷ cost per paid order. Every buyer joins a past-buyer pool that shrinks by the monthly drop-off; repeat orders = pool × monthly repeat-order rate. Earning = orders × average order value. Expenditure = fixed cost + art commissions + marketing budget + production and shipping per order + platform fees, refunds and artist royalty as shares of earning. Every assumption except setup is set per quarter. US sales tax and EU/UK VAT are collected by Etsy on top of the price (R16–R17) and are not modelled; seasonality and income tax are not modelled. Peak funding = the next ' + state.cover + ' months of fixed, art and marketing costs with zero revenue, minus profit to date.'] });
+    secs.push({ h: 'Method', p: ['Monthly model in rupees: new buyers = organic + marketing budget ÷ cost per paid order. Every buyer joins a past-buyer pool that shrinks 4% a month; repeat orders spread each buyer’s lifetime repeat orders over that pool. Order value and production cost are entered at ₹' + FX_REF + ' per US$ (R23) and rescaled by each quarter’s ₹/US$ setting. Earning = orders × order value. Expenditure = fixed cost + art commissions + marketing budget + production and shipping per order + platform, payment, FX and GST-on-fee charges, refunds and artist royalty as shares of earning. Every assumption except setup is set per quarter. The sales are outside Indian GST (R24); US sales tax and EU/UK VAT are collected by Etsy on top of the price (R16–R17) and are not modelled; seasonality and income tax are not modelled. Peak funding = the next ' + state.cover + ' months of fixed, art and marketing costs with zero revenue, minus profit to date.'] });
     return secs;
   }
   function sectionsToMarkdown(title, secs) {
@@ -1661,7 +1698,7 @@ td.neg { color: var(--bad); }
   }
   const DECK_URL = ''; // no online deck or doc exists yet for this business
   function claudeRequest(R, md) {
-    return 'Update the business case and pitch deck for my Indian folk-art print-on-demand business (Etsy first, own Shopify store later), including the Six Thinking Hats verdict, from these simulator settings. Keep the existing structure; change the numbers, verdict and funding plan to match.\n\n' + md;
+    return 'Update the business case and pitch deck for my India-based folk-art print-on-demand business (Etsy first, own Shopify store later, amounts in INR), including the Six Thinking Hats verdict, from these simulator settings. Keep the existing structure; change the numbers, verdict and funding plan to match.\n\n' + md;
   }
   function wireCopy(R, md) {
     const btn = document.getElementById('exCopy');
@@ -1741,22 +1778,21 @@ td.neg { color: var(--bad); }
   const ix = (n, col, px) => '<svg class="ix" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" fill="none" stroke="' + col + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;width:' + px + 'px;height:' + px + 'px">' + ICONS[n] + '</svg>';
   const ARROW = '<svg class="ix" width="48" height="28" viewBox="0 0 48 28" style="flex:none;width:48px;height:28px"><path d="M0 9h30V0l18 14-18 14v-9H0z" fill="#A9B8C8"/></svg>';
   const AR = "font-family:'Archivo', Arial, sans-serif;";
-  const fmtL = v => { const a = Math.abs(v); return (v < -0.5 ? '−' : '') + (a >= 1e6 ? '$' + trim(a / 1e6, 2) + 'M' : a >= 1e3 ? '$' + trim(a / 1e3, 1) + 'K' : '$' + Math.round(a)); };
+  const fmtL = v => { const a = Math.abs(v); return (v < -500 ? '−' : '') + (a >= 1e7 ? '₹' + trim(a / 1e7, 2) + ' Cr' : '₹' + trim(a / 1e5, 1) + ' L'); };
   const sgn = v => (v >= 0 ? '+' : '') + fmtL(v);
   const nice = raw => { const p = Math.pow(10, Math.floor(Math.log10(raw || 1))), n = raw / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; };
-  // deck chart values are in thousands of dollars
-  const tickL = v => (v === 0 ? '$0' : v >= 1000 ? '$' + trim(v / 1000, 2) + 'M' : '$' + trim(v, 1) + 'K');
+  const tickL = v => (v === 0 ? '₹0' : v >= 100 ? '₹' + trim(v / 100, 2) + ' Cr' : '₹' + trim(v, 1) + ' L');
 
   function deckData(R) {
     const { H, A, b, years, S, q } = R;
     const total = S.organic.map((o, i) => o + (S.cac[i] > 0 ? S.mkt[i] / S.cac[i] : 0));
     const rng = (k, f) => { const a = S[k].slice(0, Math.max(1, Math.ceil(horizon / 3))); const lo = Math.min(...a), hi = Math.max(...a); return lo === hi ? f(lo) : f(a[0]) + ' → ' + f(a[a.length - 1]); };
-    const money = v => (v % 1 ? usdc(v) : usd(v));
+    const money = v => (v % 1 ? inrc(v) : inr(v));
     const pilot = !H.go && /pilot/.test(H.label);
     return { R, H, A, b, years, S, q, total, rng, money, pilot,
       ask: H.go ? fmtL(H.raise) : fmtL(H.pilotCost) + ' → ' + fmtL(H.raise),
       paying36: Math.round(A.long[35].paying), som: Math.round(R.peakNew),
-      date: R.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      date: R.date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
       life: A.ordersPer };
   }
   const head = (eb, title, dark) => '<div style="display:flex;flex-direction:column;gap:16px"><p style="font-size:24px;letter-spacing:3px;text-transform:uppercase;color:' + (dark ? '#5E9BF0' : '#2A6FDB') + ';font-weight:600">' + eb + '</p><h2 style="' + AR + 'font-size:72px;font-weight:700;line-height:1.1;letter-spacing:-1px' + (dark ? ';color:#F4F6F4' : '') + '">' + title + '</h2></div>';
@@ -1819,7 +1855,7 @@ td.neg { color: var(--bad); }
     add('Cover', '<section style="display:flex;flex-direction:column;gap:48px;justify-content:space-between;padding:128px;background:#0e1a27;color:#f4f6f4;font-family:\'Public Sans\', Arial, sans-serif"><div class="glow" style="position:absolute;top:0;left:0;width:1920px;height:1080px;background:radial-gradient(circle at 85% 20%, #1d3a5c 0%, #0e1a27 55%)"></div>' +
       '<div style="position:absolute;top:128px;right:128px">' + ix('sun', '#2a6fdb', 160) + '</div>' +
       '<p style="position:relative;font-size:24px;letter-spacing:3px;text-transform:uppercase;color:#a9b8c8">[Brand name] · Business presentation · ' + esc(D.date) + '</p>' +
-      '<div style="position:relative;display:flex;flex-direction:column;gap:32px"><h1 style="' + AR + 'font-size:120px;font-weight:800;line-height:1.02;letter-spacing:-2px;color:#f4f6f4">India’s folk art.<br><span style="color:#5e9bf0">Printed on demand.</span></h1><p style="font-size:44px;line-height:1.3;color:#a9b8c8">Artist-licensed Madhubani, Warli and Gond designs on home and yoga goods, sold on Etsy</p></div>' +
+      '<div style="position:relative;display:flex;flex-direction:column;gap:32px"><h1 style="' + AR + 'font-size:120px;font-weight:800;line-height:1.02;letter-spacing:-2px;color:#f4f6f4">India’s folk art.<br><span style="color:#5e9bf0">Printed on demand.</span></h1><p style="font-size:44px;line-height:1.3;color:#a9b8c8">Artist-licensed Madhubani, Warli and Gond designs on home and yoga goods, run from India, sold to US buyers on Etsy</p></div>' +
       '<div style="position:relative;display:flex;flex-direction:row;gap:24px">' + tile(mo(b.be), 'Monthly break-even') + tile(mo(b.pb), 'Full payback') + tile(D.ask, H.go ? 'Funding needed' : 'Pilot first, then commit', true) + '</div></section>');
 
     // 2 problem
@@ -1830,19 +1866,19 @@ td.neg { color: var(--bad); }
     // 3 solution
     const step = (num, t, d, orange) => card('<p style="' + AR + 'font-size:72px;font-weight:800;line-height:1;color:' + (orange ? '#E9783A' : '#2A6FDB') + '">' + num + '</p><h3 style="' + AR + 'font-size:32px;font-weight:700">' + t + '</h3><p style="font-size:24px;line-height:1.4;color:#566575">' + d + '</p>', { gap: 16, pad: '36px' });
     add('Solution', sec('#FBFCFB', '#0E1A27', 56, head('The solution', 'Licensed originals, printed only when sold') + '<div style="display:flex;align-items:center;gap:20px">' +
-      step('01', 'Commission', 'Original works from named artists in the source regions') + ARROW + step('02', 'Digitise, list', 'Mockups on scarves, mats, cushions, runners, curtains') + ARROW + step('03', 'Print on demand', 'Printify or Printful print and ship; no stock') + ARROW + step('04', 'Pay the artist', (S.roy[0] > 0 ? trim(S.roy[0], 1) + '% royalty on every sale' : 'One-time fee per design'), true) + '</div>' +
+      step('01', 'Commission', 'Original works from named artists in the source regions') + ARROW + step('02', 'Digitise, list', 'Mockups on scarves, mats, cushions, runners, curtains') + ARROW + step('03', 'Print on demand', 'Printify or Printful print and ship in the US; no stock') + ARROW + step('04', 'Pay the artist', (S.roy[0] > 0 ? trim(S.roy[0], 1) + '% royalty on every sale' : 'One-time fee per design'), true) + '</div>' +
       '<div style="display:flex;align-items:center;gap:32px;background:#0E1A27;border-radius:20px;padding:40px 48px">' + ix('shield', '#5E9BF0', 64) + '<p style="' + AR + 'font-size:44px;font-weight:600;line-height:1.2;color:#F4F6F4">Every product names its artist and carries a written licence.</p></div>' +
       foot('Production partners disclosed on Etsy as its Creativity Standards require (R8)', n2())));
 
     // 4 market
     const mrow = (big, txt, blue, last) => '<div style="display:flex;align-items:baseline;gap:32px' + (last ? '' : ';border-bottom:1px solid #D9DFDC;padding:0 0 28px') + '"><p style="width:400px;' + AR + 'font-size:72px;font-weight:800;line-height:1;color:' + (blue ? '#2A6FDB' : '#0E1A27') + '">' + big + '</p><p style="flex:1;font-size:24px;line-height:1.4;color:#566575">' + txt + '</p></div>';
-    const somTxt = D.som.toLocaleString('en-US');
+    const somTxt = D.som.toLocaleString('en-IN');
     add('Market', sec('#F4F6F4', '#0E1A27', 16, head('Market', 'A large market, reached through one marketplace') +
       '<div style="position:absolute;left:148px;top:330px;width:590px;height:590px;border-radius:50%;background:#DCE7F8"></div><div style="position:absolute;left:243px;top:525px;width:400px;height:395px;border-radius:50%;background:#A9C6F2"></div><div style="position:absolute;left:343px;top:722px;width:200px;height:198px;border-radius:50%;background:#2A6FDB"></div>' +
       '<p style="position:absolute;left:293px;top:362px;width:300px;' + AR + 'font-size:32px;font-weight:700;text-align:center">TAM</p><p style="position:absolute;left:263px;top:404px;width:360px;font-size:24px;text-align:center;color:#2B3B4C">' + RB.R3.big + ' US home décor</p>' +
       '<p style="position:absolute;left:293px;top:556px;width:300px;' + AR + 'font-size:32px;font-weight:700;text-align:center">SAM</p><p style="position:absolute;left:263px;top:598px;width:360px;font-size:24px;text-align:center;color:#1B2B3C">' + RB.R1.sam + ' Etsy Home &amp; Living</p>' +
       '<p style="position:absolute;left:343px;top:770px;width:200px;' + AR + 'font-size:32px;font-weight:700;text-align:center;color:#FBFCFB">SOM</p><p style="position:absolute;left:343px;top:812px;width:200px;font-size:24px;text-align:center;color:#FBFCFB">' + somTxt + ' buyers / mo</p>' +
-      '<div style="position:absolute;left:860px;top:340px;width:932px;display:flex;flex-direction:column;gap:40px">' + mrow(RB.R1.big, RB.R1.say) + mrow(RB.R4.big, RB.R4.say) + mrow(RB.R22.big, RB.R22.say) + mrow(somTxt, 'Our new buyers per month by quarter ' + R.peakQ + ', with ' + D.paying36.toLocaleString('en-US') + ' orders a month by month 36', true, true) + '</div>' +
+      '<div style="position:absolute;left:860px;top:340px;width:932px;display:flex;flex-direction:column;gap:40px">' + mrow(RB.R1.big, RB.R1.say) + mrow(RB.R4.big, RB.R4.say) + mrow(RB.R22.big, RB.R22.say) + mrow(somTxt, 'Our new buyers per month by quarter ' + R.peakQ + ', with ' + D.paying36.toLocaleString('en-IN') + ' orders a month by month 36', true, true) + '</div>' +
       foot('Sources: Etsy FY2025 (R1), imarcgroup.com (R3), CDC via NPR (R4), Pew (R22). SAM: Etsy Home & Living, as reported.', n2())));
 
     // 5 model
@@ -1850,26 +1886,26 @@ td.neg { color: var(--bad); }
     const mcard = (lab, big, sub, dark) => card('<p style="font-size:32px;font-weight:600;color:' + (dark ? '#A9B8C8' : '#566575') + '">' + lab + '</p><p style="' + AR + 'font-size:' + (big.length > 6 ? 72 : 120) + 'px;font-weight:800;line-height:1;letter-spacing:-2px' + (dark ? ';color:#F4F6F4' : '') + '">' + big + '</p><p style="font-size:24px;color:' + (dark ? '#A9B8C8' : '#566575') + '">' + sub + '</p>', dark ? { bg: '#0E1A27', line: '#0E1A27' } : {});
     const chk = t => '<div style="display:flex;align-items:center;gap:16px">' + ix('checkc', '#2A6FDB', 48) + '<p style="font-size:32px;font-weight:600">' + t + '</p></div>';
     add('Business model', sec('#FBFCFB', '#0E1A27', 56, head('Business model', 'Designed by us, printed on demand, sold online') + '<div style="display:flex;gap:28px">' +
-      mcard('Order value', aovTxt, 'incl. shipping, before tax') + mcard('Production', podTxt, 'print + ship, paid per order') + mcard('Platform fees', feeTxt, 'of each sale') + mcard('Stock held', '$0', 'printed on demand', true) + '</div>' +
-      '<div style="display:flex;gap:48px;align-items:center">' + chk('No inventory') + chk(D.life.toFixed(2) + ' orders per buyer') + chk(usd(A.ltv) + ' lifetime revenue') + '</div>' +
-      foot('Prices exclude US sales tax and EU/UK VAT, which Etsy adds at checkout (R16–R17).', n2())));
+      mcard('Order value', aovTxt, 'incl. shipping, before tax') + mcard('Production', podTxt, 'print + ship, paid in US$ per order') + mcard('Platform fees', feeTxt, 'of each sale') + mcard('Stock held', '₹0', 'printed on demand', true) + '</div>' +
+      '<div style="display:flex;gap:48px;align-items:center">' + chk('No inventory') + chk(D.life.toFixed(2) + ' orders per buyer') + chk(inr(A.ltv) + ' lifetime revenue') + '</div>' +
+      foot('Prices exclude US sales tax and EU/UK VAT, which Etsy adds at checkout (R16–R17). Sales are outside Indian GST (R24). Rupee values at ₹' + FX_REF + ' per US$.', n2())));
 
     // 6 unit economics
     const maxB = Math.max(A.ltv, A.acqPaying, 1);
-    const bar = (lab, v, col, tc, sub) => '<div style="display:flex;align-items:center;gap:40px"><p style="width:420px;font-size:32px;font-weight:600;line-height:1.25">' + lab + '</p><div style="display:flex;flex-direction:column;gap:10px"><div style="width:' + Math.max(220, Math.round(1100 * v / maxB)) + 'px;display:flex;align-items:center;background:' + col + ';border-radius:12px;padding:16px 28px"><p style="' + AR + 'font-size:44px;font-weight:700;color:' + tc + '">' + usd(v) + '</p></div><p style="font-size:24px;color:#566575">' + sub + '</p></div></div>';
+    const bar = (lab, v, col, tc, sub) => '<div style="display:flex;align-items:center;gap:40px"><p style="width:420px;font-size:32px;font-weight:600;line-height:1.25">' + lab + '</p><div style="display:flex;flex-direction:column;gap:10px"><div style="width:' + Math.max(220, Math.round(1100 * v / maxB)) + 'px;display:flex;align-items:center;background:' + col + ';border-radius:12px;padding:16px 28px"><p style="' + AR + 'font-size:44px;font-weight:700;color:' + tc + '">' + inr(v) + '</p></div><p style="font-size:24px;color:#566575">' + sub + '</p></div></div>';
     const ucard = (big, sub, blue) => card('<p style="' + AR + 'font-size:72px;font-weight:800;line-height:1' + (blue ? ';color:#2A6FDB' : '') + '">' + big + '</p><p style="font-size:24px;color:#566575">' + sub + '</p>', { bg: '#FBFCFB', gap: 8, pad: '32px 40px' });
-    const cn = A.contribNew, cnR = Math.round(Math.abs(cn));
-    add('Unit economics', sec('#F4F6F4', '#0E1A27', 56, head('Unit economics', cn >= 0 ? 'About $' + cnR.toLocaleString('en-US') + ' margin per new buyer' : 'About $' + cnR.toLocaleString('en-US') + ' lost per new buyer') +
-      '<div style="display:flex;flex-direction:column;gap:40px">' + bar('Lifetime revenue per buyer', A.ltv, '#2A6FDB', '#FBFCFB', D.life.toFixed(2) + ' orders × ' + usdc(S.aov[q]) + ', after platform fees') + bar('Acquisition cost per buyer', A.acqPaying, '#E9783A', '#0E1A27', 'Marketing ' + usd(S.mkt[q]) + ' ÷ ' + Math.round(A.nlRef).toLocaleString('en-US') + ' new buyers a month; paid buyers cost ' + usd(S.cac[q]) + ' each') + '</div>' +
-      '<div style="display:flex;gap:28px">' + ucard(usdc(A.marginOrder), 'margin per order after production, fees, refunds, royalty') + ucard((A.ltv / Math.max(1, A.acqPaying)).toFixed(1) + '×', 'lifetime revenue to blended acquisition cost') + ucard(isFinite(A.needN) ? Math.ceil(A.needN).toLocaleString('en-US') : 'Never', 'new buyers a month cover costs; plan reaches ' + Math.round(A.nlRef).toLocaleString('en-US'), true) + '</div>' +
-      foot('Your settings at quarter ' + (q + 1) + ': ' + usd(S.fixed[q]) + ' fixed cost, ' + usd(S.art[q]) + ' art, ' + usd(S.mkt[q]) + ' marketing a month; ' + usdc(S.pod[q]) + ' production + shipping per order', n2(), null, 1500)));
+    const cn = A.contribNew, cnR = Math.round(Math.abs(cn) / 10) * 10;
+    add('Unit economics', sec('#F4F6F4', '#0E1A27', 56, head('Unit economics', cn >= 0 ? 'About ₹' + cnR.toLocaleString('en-IN') + ' margin per new buyer' : 'About ₹' + cnR.toLocaleString('en-IN') + ' lost per new buyer') +
+      '<div style="display:flex;flex-direction:column;gap:40px">' + bar('Lifetime revenue per buyer', A.ltv, '#2A6FDB', '#FBFCFB', D.life.toFixed(2) + ' orders × ' + inrc(A.aovRef) + ', after fees, GST on fees and FX') + bar('Acquisition cost per buyer', A.acqPaying, '#E9783A', '#0E1A27', 'Marketing ' + inr(S.mkt[q]) + ' ÷ ' + Math.round(A.nlRef).toLocaleString('en-IN') + ' new buyers a month; paid buyers cost ' + inr(S.cac[q]) + ' each') + '</div>' +
+      '<div style="display:flex;gap:28px">' + ucard(inrc(A.marginOrder), 'margin per order after production, fees, refunds, royalty') + ucard((A.ltv / Math.max(1, A.acqPaying)).toFixed(1) + '×', 'lifetime revenue to blended acquisition cost') + ucard(isFinite(A.needN) ? Math.ceil(A.needN).toLocaleString('en-IN') : 'Never', 'new buyers a month cover costs; plan reaches ' + Math.round(A.nlRef).toLocaleString('en-IN'), true) + '</div>' +
+      foot('Your settings at quarter ' + (q + 1) + ': ' + inr(S.fixed[q]) + ' fixed cost, ' + inr(S.art[q]) + ' art, ' + inr(S.mkt[q]) + ' marketing a month; ' + inrc(A.podRef) + ' production + shipping per order', n2(), null, 1500)));
 
     // 7 monthly
     const NM = b.be && b.be <= 54 ? Math.max(36, Math.ceil((b.be + 8) / 12) * 12) : 60;
     const rws = A.long.slice(0, NM);
     add('Financials · monthly', sec('#FBFCFB', '#0E1A27', 16, head('Financials · monthly', b.be ? 'Monthly break-even in month ' + b.be : 'Earning stays below expenditure') + legendLine([['Earning', '#2A6FDB'], ['Expenditure', '#E9783A']], 1180, 612) +
-      lineChart([0].concat(rws.map(r => r.revenue / 1e3)), [rws[0].spend / 1e3].concat(rws.map(r => r.spend / 1e3)), { every: NM <= 36 ? 6 : 12, crossAt: b.be && b.be <= NM ? b.be : null, dashed: true, labelTop: 'chart', crossLabel: 'Break-even<br>month ' + b.be, endFmt: v => '$' + trim(v, 1) + 'K', below: true, tags: true, aria: 'Monthly earning and expenditure over ' + NM + ' months' }) +
-      foot('Months since launch · ' + esc(R.scenario) + ' · excludes ' + usd(state.setup) + ' setup cost', n2())));
+      lineChart([0].concat(rws.map(r => r.revenue / 1e5)), [rws[0].spend / 1e5].concat(rws.map(r => r.spend / 1e5)), { every: NM <= 36 ? 6 : 12, crossAt: b.be && b.be <= NM ? b.be : null, dashed: true, labelTop: 'chart', crossLabel: 'Break-even<br>month ' + b.be, endFmt: v => '₹' + trim(v, 1) + ' L', below: true, tags: true, aria: 'Monthly earning and expenditure over ' + NM + ' months' }) +
+      foot('Months since launch · ' + esc(R.scenario) + ' · excludes ' + inr(state.setup) + ' setup cost', n2())));
 
     // 8 annual P&L
     const y3 = years.slice(0, 3), maxY = Math.max(...y3.map(y => Math.max(y.rev, y.spend)), 1), k = Math.min(380, 337 * 1) / maxY;
@@ -1884,7 +1920,7 @@ td.neg { color: var(--bad); }
     const firstProfit = years.find(y => y.net >= 0);
     const ncard = y => { const pos = y.net >= 0; return '<div style="display:flex;flex-direction:column;gap:4px;background:' + (pos ? '#0E1A27' : '#FBFCFB') + ';border:1px solid ' + (pos ? '#0E1A27' : '#D9DFDC') + ';border-radius:16px;padding:24px 32px"><p style="font-size:24px;color:' + (pos ? '#A9B8C8' : '#566575') + '">Net, year ' + y.k + '</p><p style="' + AR + 'font-size:44px;font-weight:700;color:' + (pos ? '#5E9BF0' : '#B0531F') + '">' + sgn(y.net) + '</p></div>'; };
     add('Financials · annual', sec('#F4F6F4', '#0E1A27', 16, head('Financials · annual', firstProfit ? (firstProfit.k === 1 ? 'Profitable from year 1' : 'Profitable from year ' + firstProfit.k) : 'Not yet profitable in five years') +
-      '<div style="position:absolute;left:128px;top:262px;width:1200px;display:flex;gap:40px"><div style="display:flex;align-items:center;gap:12px"><div style="width:28px;height:28px;background:#2A6FDB;border-radius:6px"></div><p style="font-size:24px">Revenue</p></div><div style="display:flex;align-items:center;gap:12px"><div style="width:28px;height:28px;background:#E9783A;border-radius:6px"></div><p style="font-size:24px">Expenditure (year 1 includes ' + usd(state.setup) + ' setup)</p></div></div>' +
+      '<div style="position:absolute;left:128px;top:262px;width:1200px;display:flex;gap:40px"><div style="display:flex;align-items:center;gap:12px"><div style="width:28px;height:28px;background:#2A6FDB;border-radius:6px"></div><p style="font-size:24px">Revenue</p></div><div style="display:flex;align-items:center;gap:12px"><div style="width:28px;height:28px;background:#E9783A;border-radius:6px"></div><p style="font-size:24px">Expenditure (year 1 includes ' + inr(state.setup) + ' setup)</p></div></div>' +
       bars + '<div style="position:absolute;left:168px;top:830px;width:1196px;height:3px;background:#A9B8C8"></div>' +
       '<div style="position:absolute;left:1440px;top:340px;width:352px;display:flex;flex-direction:column;gap:20px">' + y3.map(ncard).join('') + '</div>' +
       foot(esc(R.scenario) + ' · sales tax and VAT collected by Etsy, not modelled · no pay for founder time' + (years[4] ? ' · year 5 net ' + sgn(years[4].net) : ''), n2())));
@@ -1892,7 +1928,7 @@ td.neg { color: var(--bad); }
     // 9 payback (cumulative)
     const r60 = A.long.slice(0, 60);
     add('Financials · cumulative', sec('#FBFCFB', '#0E1A27', 16, head('Financials · cumulative', b.pb ? 'All invested cash back by month ' + b.pb : 'Investment not recovered within 10 years') + legendLine([['Cumulative revenue', '#2A6FDB'], ['Cumulative spend, incl. setup', '#E9783A']], 1000, 792) +
-      lineChart([0].concat(r60.map(r => r.cumRev / 1e3)), [state.setup / 1e3].concat(r60.map(r => r.cumSpend / 1e3)), { every: 12, wideTicks: true, crossAt: b.pb && b.pb <= 60 ? b.pb : null, crossLabel: 'Payback<br>month ' + b.pb, endFmt: v => tickL(+v.toFixed(2)), aria: 'Cumulative revenue and spending over 60 months' }) +
+      lineChart([0].concat(r60.map(r => r.cumRev / 1e5)), [state.setup / 1e5].concat(r60.map(r => r.cumSpend / 1e5)), { every: 12, wideTicks: true, crossAt: b.pb && b.pb <= 60 ? b.pb : null, crossLabel: 'Payback<br>month ' + b.pb, endFmt: v => tickL(+v.toFixed(2)), aria: 'Cumulative revenue and spending over 60 months' }) +
       '<div style="position:absolute;left:272px;top:350px;width:400px;display:flex;flex-direction:column;gap:4px;background:#0E1A27;border-radius:16px;padding:24px 32px"><p style="font-size:24px;color:#A9B8C8">Peak funding need</p><p style="' + AR + 'font-size:72px;font-weight:800;line-height:1.05;color:#F4F6F4">' + fmtL(b.peak) + '</p><p style="font-size:24px;color:#A9B8C8">Month ' + b.peakM + ', with ' + state.cover + ' months’ cover</p></div>' +
       '<div style="position:absolute;left:696px;top:350px;width:400px;display:flex;flex-direction:column;gap:4px;background:#E3ECFB;border-radius:16px;padding:24px 32px"><p style="font-size:24px;color:#2B3B4C">Cumulative cash, 5 years</p><p style="' + AR + 'font-size:72px;font-weight:800;line-height:1.05;color:' + (b.cum60 >= 0 ? '#1F56B0' : '#B0531F') + '">' + sgn(b.cum60) + '</p><p style="font-size:24px;color:#2B3B4C">Combined shock: ' + sgn(H.comb.cum60) + '</p></div>' +
       foot('Months since launch · ' + esc(R.scenario), n2())));
@@ -1907,11 +1943,11 @@ td.neg { color: var(--bad); }
       foot('Peak funding = next ' + state.cover + ' months’ fixed, art and marketing costs with zero revenue, minus profit to date. “+” = still rising at year 5.', n2(), null, 1500)));
 
     // 11 go-to-market
-    const L = v => Math.round(v).toLocaleString('en-US');
+    const L = v => Math.round(v).toLocaleString('en-IN');
     const gcol = (top, eb, t, items, pill, dark) => '<div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:24px;background:#F4F6F4;border:1px solid #D9DFDC;border-top:8px solid ' + top + ';border-radius:20px;padding:40px"><div style="display:flex;flex-direction:column;gap:20px"><p style="font-size:24px;letter-spacing:3px;text-transform:uppercase;color:#566575;font-weight:600">' + eb + '</p><h3 style="' + AR + 'font-size:44px;font-weight:700">' + t + '</h3><ul style="font-size:28px;line-height:1.45;color:#2B3B4C">' + items.map(x => '<li>' + x + '</li>').join('') + '</ul></div><p style="font-size:28px;font-weight:600;background:' + (dark ? '#0E1A27;color:#F4F6F4' : '#FBFCFB') + ';border:1px solid ' + (dark ? '#0E1A27' : '#D9DFDC') + ';border-radius:12px;padding:16px 20px">' + pill + '</p></div>';
     const orgShare = total[3] > 0 ? Math.round(S.organic[3] / total[3] * 100) : 0;
     add('Go-to-market', sec('#FBFCFB', '#0E1A27', 56, head('Go-to-market', orgShare >= 50 ? 'Etsy search first, own store second' : 'Paid-led growth on Etsy and our own store') + '<div style="display:flex;gap:28px;flex:1">' +
-      gcol('#A9C6F2', 'Pilot · ' + fmtL(H.pilotCost), 'Months 1–3', ['60–100 Etsy listings, 4–6 products', 'About 20 licensed designs from 3–4 artists', 'Etsy Ads at about $3 a day on listings that sell'], L(total[0]) + ' new buyers / month') +
+      gcol('#A9C6F2', 'Pilot · ' + fmtL(H.pilotCost), 'Months 1–3', ['GST registration, Payoneer and a low-markup card', 'About 20 licensed designs from 3–4 Indian artists', '60–100 Etsy listings; ads at about ₹300 a day'], L(total[0]) + ' new buyers / month') +
       gcol('#5E9BF0', 'Validate', 'Months 4–6', ['Pinterest boards and an email list', H.go ? 'Scale ads against measured costs' : 'Stage 2 only if the pilot passes', 'Samples tested on every product'], L(total[1]) + ' new buyers / month') +
       gcol('#1F56B0', 'Scale', 'Months 7–12', ['Own Shopify store prepared for year 2', orgShare >= 50 ? 'Ads capped; Etsy search stays the main channel' : 'Ads at the measured cost per order', 'UK and EU via EU print partners after GPSR set-up'], L(total[2]) + ' → ' + L(total[3]) + ' new buyers / month', true) + '</div>' +
       foot('Your plan: marketing budget ' + D.rng('mkt', D.money) + ' a month; about ' + orgShare + '% of new buyers arrive organically by quarter 4', n2(), null, 1500)));
@@ -1919,19 +1955,19 @@ td.neg { color: var(--bad); }
     // 12 risks
     const rk = (icon, t, d) => '<div style="display:flex;gap:28px;align-items:start;background:#FBFCFB;border:1px solid #D9DFDC;border-radius:20px;padding:40px">' + ix(icon, '#E9783A', 56) + '<div style="flex:1;display:flex;flex-direction:column;gap:12px"><h3 style="' + AR + 'font-size:32px;font-weight:700">' + t + '</h3><p style="font-size:24px;line-height:1.45;color:#566575">' + d + '</p></div></div>';
     add('Risks', sec('#F4F6F4', '#0E1A27', 56, head('Risks', 'Key risks, each with a control') + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">' +
-      rk('search', 'Etsy ranking or copycats cut organic sales', 'Email list, Pinterest and an own store so no single algorithm decides sales') + rk('warning', 'Cost per paid order above ' + usd(S.cac[0]), 'Month-3 gate: scale ads only at 3× return or better (R13)') +
-      rk('wrench', 'Production + shipping above ' + D.money(S.pod[0]), 'Samples from two providers; switch within the Printify network') + rk('users', 'Authenticity or IP complaint', 'Written licences with named artists and a royalty; no misuse of GI names (R18)') + '</div>' +
-      foot('Also planned: production partners disclosed on Etsy (R8); EU responsible person before EU sales (R17); 12% Offsite Ads fee priced in (R6)', n2())));
+      rk('search', 'Etsy ranking or copycats cut organic sales', 'Email list, Pinterest and an own store so no single algorithm decides sales') + rk('warning', 'Cost per paid order above ' + inr(S.cac[0]), 'Month-3 gate: scale ads only at 3× return or better (R13)') +
+      rk('wrench', 'Rupee strengthens, or Indian cards decline Printify charges', 'Plan re-tested at ₹88 per US$; zero-markup card or a funded Printify balance') + rk('users', 'Authenticity or IP complaint', 'Written licences with named artists and a royalty; no misuse of GI names (R18)') + '</div>' +
+      foot('Also planned: GST registration with 18% reverse charge on platform fees (R25); production partners disclosed on Etsy (R8); EU responsible person before EU sales (R17)', n2())));
 
     // 13 six hats
     const fm = m => (m ? 'month ' + m : 'never');
     const short = {
-      white: H.measured ? 'Demand is real; inputs measured in a pilot' : 'Demand is real; sales, costs and conversion unmeasured',
-      red: H.measured ? 'Strangers paid full price in the pilot' : 'Friends love the art; strangers compare it with handmade',
+      white: H.measured ? 'Demand is real; inputs measured in a pilot' : 'Demand is real; India-based fees are higher; sales unmeasured',
+      red: H.measured ? 'Strangers paid full price in the pilot' : 'Working with Indian artists feels right; buyers compare with handmade',
       black: 'Payback ' + fm(b.pb) + '; ' + (H.comb.be ? 'combined shock: break-even month ' + H.comb.be : 'never breaks even under the combined shock'),
-      yellow: '5-year cash ' + sgn(b.cum60) + ', ' + D.paying36.toLocaleString('en-US') + ' orders a month by month 36, no stock',
+      yellow: '5-year cash ' + sgn(b.cum60) + ', ' + D.paying36.toLocaleString('en-IN') + ' orders a month by month 36, no stock',
       green: 'Email and Pinterest; wholesale to yoga studios; named-artist collections',
-      blue: H.go ? 'Measured inputs and a plan that survives the shock: commit ' + fmtL(H.raise) : D.pilot ? 'No art or ad money at scale until the inputs are measured' : 'The plan as set does not pay back; change the inputs'
+      blue: H.go ? (H.hats[2].lean === 'GO' ? 'Measured inputs and a plan that survives the shock: commit ' : 'Measured inputs; commit in stages, up to ') + fmtL(H.raise) : D.pilot ? 'No art or ad money at scale until the inputs are measured' : 'The plan as set does not pay back; change the inputs'
     };
     const leanTxt = h => h.key === 'blue' ? (H.go ? 'Go' : D.pilot ? 'Pilot now' : 'Not to go') : h.lean === 'GO' ? (h.key === 'green' ? 'Go, if reshaped' : 'Go') : h.lean === 'Mixed' ? 'Mixed' : 'Not to go yet';
     const hat = h => { const dark = h.key === 'blue', lt = leanTxt(h), lc = dark ? '#5E9BF0' : /^Go/.test(lt) ? '#1F56B0' : lt === 'Mixed' ? '#566575' : '#B0531F';
@@ -1952,12 +1988,12 @@ td.neg { color: var(--bad); }
       '<div style="width:760px;height:56px;display:flex;border-radius:10px;overflow:hidden">' + parts.map(p => '<div style="width:' + Math.round(760 * p[1] / R.mix.total) + 'px;height:56px;background:' + p[2] + '"></div>').join('') + '</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px">' + parts.map(p => '<div style="display:flex;align-items:center;gap:16px"><div style="width:24px;height:24px;background:' + p[2] + ';border-radius:4px"></div><p style="flex:1;font-size:24px">' + p[0] + '</p><p style="font-size:24px;font-weight:600">' + fmtL(p[1]) + ' · ' + Math.round(p[1] / R.mix.total * 100) + '%</p></div>').join('') + '</div>' +
       '<p style="font-size:24px;line-height:1.4;color:#A9B8C8">Revenue covers ' + fmtL(R.mix.rev) + ' of this; the budget funds the rest plus a ' + state.cover + '-month reserve.</p></div></div>' +
-      foot('[Funding source — founder savings, a small-business loan or a partner — to be confirmed]', n2(), '#A9B8C8')));
+      foot('[Funding source — founder savings, an MSME loan or a partner — to be confirmed]', n2(), '#A9B8C8')));
 
     // 15 close
     add('Close', '<section style="background:#1F56B0;color:#FBFCFB;font-family:\'Public Sans\', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:space-between;gap:48px"><div class="glow" style="position:absolute;left:0;top:0;width:1920px;height:1080px;background:radial-gradient(circle at 80% 85%, #2A6FDB 0%, #1F56B0 55%)"></div>' +
       '<div style="position:absolute;right:128px;top:128px">' + ix('sun', '#FBFCFB', 160) + '</div><p style="position:relative;font-size:24px;letter-spacing:3px;text-transform:uppercase;color:#DCE7F8">[Brand name]</p>' +
-      '<div style="position:relative;display:flex;flex-direction:column;gap:32px"><h1 style="' + AR + 'font-size:120px;font-weight:800;line-height:1.02;letter-spacing:-2px;color:#FBFCFB">Real artists.<br>Everyday things.</h1><p style="font-size:44px;line-height:1.3;color:#DCE7F8">Let’s bring India’s folk art into homes and yoga rooms, and pay the artists.</p></div>' +
+      '<div style="position:relative;display:flex;flex-direction:column;gap:32px"><h1 style="' + AR + 'font-size:120px;font-weight:800;line-height:1.02;letter-spacing:-2px;color:#FBFCFB">Real artists.<br>Everyday things.</h1><p style="font-size:44px;line-height:1.3;color:#DCE7F8">Let’s take India’s folk art into homes and yoga rooms worldwide, and pay the artists.</p></div>' +
       '<div style="position:relative;display:flex;gap:48px;align-items:center"><p style="' + AR + 'font-size:32px;font-weight:700;color:#FBFCFB">[Founder name]</p><p style="font-size:32px;color:#DCE7F8">[email]</p><p style="font-size:32px;color:#DCE7F8">[phone]</p></div></section>');
     return out;
   }
